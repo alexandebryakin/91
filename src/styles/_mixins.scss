@@ -1,0 +1,7 @@
+@mixin with-navbar-margined {
+  margin-top: $--navbar-height;
+}
+
+@mixin height-without-navbar {
+  height: calc(100vh - #{$--navbar-height});
+}
