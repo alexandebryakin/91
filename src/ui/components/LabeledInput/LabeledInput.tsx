@@ -1,4 +1,4 @@
-interface ILabeledInput extends Partial<Pick<HTMLInputElement, 'defaultValue' | 'placeholder'>> {
+interface ILabeledInput extends Partial<Pick<HTMLInputElement, 'defaultValue' | 'placeholder' | 'value'>> {
   onChange?: (v: string) => void;
   label: string;
 }
