@@ -84,48 +84,54 @@ html {
   }
 }
 
-.labeled-input {
-  position: relative;
-
-  font-size: 14px;
-
-  input {
-    color: #727585;
-    padding-right: 30px;
-  }
-
-  &__label {
-    &-container {
-      top: 0;
-      right: 0;
-      position: absolute;
-      height: $--text-input-height;
-    }
-
-    height: $--text-input-height;
-    color: #8c99a2;
-    display: flex;
-    align-items: center;
-    padding-right: $--text-input-padding;
-  }
-}
-.text-input {
-  height: $--text-input-height;
-  background-color: #fff;
-  border-radius: 8px;
-  border: 1px solid $--color_text-input-border;
-  padding: $--text-input-padding;
-  width: 100%;
-
-  &:focus {
-    outline: 0;
-    // box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);
-    border: 0;
-    box-shadow: 0px 1px 10px rgba(0, 0, 0, 0.1);
-    // filter: drop-shadow(0px 1px 10px rgba(0, 0, 0, 0.1));
-  }
-}
-
 #konva-stage-container {
   @include height-without-navbar;
+}
+
+.separator {
+  border-bottom: 1px solid $--border-color;
+  width: 100%;
+}
+
+.toolbar {
+  $--toolbar-width: 60px;
+  $--toolbar-padding: 10px;
+  min-width: $--toolbar-width;
+  max-width: $--toolbar-width;
+
+  border-left: 1px solid $--border-color;
+
+  &__group {
+    flex-direction: column;
+    align-items: center;
+    padding: $--toolbar-padding;
+  }
+
+  // flex-grow: 1;
+
+  .tool {
+    $--color-bg-tool: #eef3f7;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    width: 40px;
+    height: 40px;
+
+    border-radius: $--border-radius;
+    &:hover {
+      background-color: $--color-bg-tool;
+    }
+    transition: background-color 0.21s ease-in-out;
+
+    margin-top: calc(#{$--toolbar-padding}/ 2);
+    margin-bottom: calc(#{$--toolbar-padding}/ 2);
+    cursor: pointer;
+    user-select: none;
+
+    &--active {
+      background-color: $--color-bg-tool;
+      border: 1px solid $--border-color;
+    }
+  }
 }

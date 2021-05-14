@@ -1,0 +1,43 @@
+@import 'styles/variables';
+
+.labeled-input {
+  position: relative;
+
+  font-size: 14px;
+
+  input {
+    color: #727585;
+    padding-right: 30px;
+  }
+
+  &__label {
+    &-container {
+      top: 0;
+      right: 0;
+      position: absolute;
+      height: $--text-input-height;
+    }
+
+    height: $--text-input-height;
+    color: #8c99a2;
+    display: flex;
+    align-items: center;
+    padding-right: $--text-input-padding;
+  }
+}
+.text-input {
+  height: $--text-input-height;
+  background-color: #fff;
+  border-radius: $--border-radius;
+  border: 1px solid $--color_text-input-border;
+  padding: $--text-input-padding;
+  width: 100%;
+
+  &:focus {
+    outline: 0;
+    // box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);
+    border: 0;
+    box-shadow: 0px 1px 10px rgba(0, 0, 0, 0.1);
+    // filter: drop-shadow(0px 1px 10px rgba(0, 0, 0, 0.1));
+  }
+}
