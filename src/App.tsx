@@ -31,6 +31,7 @@ function App(): React.ReactElement {
       container: konvaStageContainer,
       width: width,
       height: height,
+      draggable: true,
     });
 
     const layer = new Konva.Layer();
@@ -94,6 +95,34 @@ function App(): React.ReactElement {
       setPinned(nodes.length != 0 && !isSelectionDraggable(tr));
     };
     stage.on('click', handleSelection);
+
+    const handleStageScale = (e: KonvaEventObject<WheelEvent>) => {
+      if (!e.evt.ctrlKey) return;
+      const scaleBy = 1.02;
+      e.evt.preventDefault();
+      const oldScale = stage.scaleX();
+
+      const pointer = stage.getPointerPosition();
+
+      const pointerX = pointer?.x || 0;
+      const pointerY = pointer?.y || 0;
+      const mousePointTo = {
+        x: (pointerX - stage.x()) / oldScale,
+        y: (pointerY - stage.y()) / oldScale,
+      };
+
+      const newScale = e.evt.deltaY > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+
+      stage.scale({ x: newScale, y: newScale });
+
+      const newPos = {
+        x: pointerX - mousePointTo.x * newScale,
+        y: pointerY - mousePointTo.y * newScale,
+      };
+      stage.position(newPos);
+      stage.batchDraw();
+    };
+    stage.on('wheel', handleStageScale);
 
     setStage(stage);
     setLayer(layer);
@@ -348,6 +377,9 @@ function App(): React.ReactElement {
   const [pinned, setPinned] = React.useState(false);
 
   Object.assign(window, { __stage: stage, __layer: layer, __tr: transformer });
+
+  console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage?.attrs.x, stage?.attrs.y);
+  // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage);
 
   return (
     <>
