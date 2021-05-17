@@ -1,10 +1,14 @@
 import Konva from 'konva';
 import { Layer } from 'konva/types/Layer';
+import { Transformer } from 'konva/types/shapes/Transformer';
+import { KonvaEventObject } from 'konva/types/Node';
 import { Stage } from 'konva/types/Stage';
 import React from 'react';
 import './App.scss';
 import LabeledInput from './ui/components/LabeledInput';
 import NavBar from './ui/components/NavBar';
+import PinIcon from './icons/PinIcon';
+import { Shape } from 'konva/types/Shape';
 
 function SideBar(): React.ReactElement {
   return (
@@ -32,36 +36,92 @@ function App(): React.ReactElement {
     const layer = new Konva.Layer();
     stage.add(layer);
 
-    const text = new Konva.Text({
-      x: 50,
-      y: 60,
-      fontSize: 20,
-      text: 'Hello from the Konva framework. Try to resize me.',
-      draggable: true,
-    });
-    layer.add(text);
+    // text.on('transform', function () {
+    //   setSize(() => {
+    //     return {
+    //       width: Math.round(text.width()),
+    //       height: Math.round(text.height()),
+    //     };
+    //   });
+    //   // const lines = [
+    //   //   'x: ' + text.x(),
+    //   //   'y: ' + text.y(),
+    //   //   'rotation: ' + text.rotation(),
+    //   //   'width: ' + text.width(),
+    //   //   'height: ' + text.height(),
+    //   //   'scaleX: ' + text.scaleX(),
+    //   //   'scaleY: ' + text.scaleY(),
+    //   // ];
+    //   // console.log(lines);
+    // });
 
-    const MIN_WIDTH = 20;
+    // text.on('transform', () => {
+    //   // with enabled anchors we can only change scaleX
+    //   // so we don't need to reset height
+    //   // just width
+    //   text.setAttrs({
+    //     width: Math.max(text.width() * text.scaleX(), MIN_WIDTH),
+    //     scaleX: 1,
+    //     scaleY: 1,
+    //   });
+    // });
+
+    // >>> try
+    //
+
     const tr = new Konva.Transformer({
-      nodes: [text],
+      nodes: [],
       padding: 5,
       // enable only side anchors
       enabledAnchors: ['middle-left', 'middle-right'],
       // limit transformer size
       boundBoxFunc: (oldBox, newBox) => {
-        if (newBox.width < MIN_WIDTH) {
-          return oldBox;
-        }
-        return newBox;
+        const MIN_WIDTH = 20;
+
+        return newBox.width < MIN_WIDTH ? oldBox : newBox;
       },
     });
-    layer.add(tr);
-    layer.draw();
 
-    stage.on('dragmove', function (e) {
+    tr.on('dragmove', function (e) {
       const { x, y } = e.target.attrs;
       setCoords(() => ({ x: Math.round(x), y: Math.round(y) }));
     });
+    layer.add(tr);
+
+    const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
+      const nodes = e.target === stage ? [] : [e.target];
+      tr.nodes(nodes);
+      setPinned(nodes.length != 0 && !isSelectionDraggable(tr));
+    };
+    stage.on('click', handleSelection);
+
+    setStage(stage);
+    setLayer(layer);
+    setTransformer(tr);
+  }, []);
+
+  const [stage, setStage] = React.useState<Stage>();
+  const [layer, setLayer] = React.useState<Layer>();
+  const [transformer, setTransformer] = React.useState<Transformer>();
+
+  const [coords, setCoords] = React.useState({ x: 0, y: 0 });
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
+
+  const [currentlyAddingTextNode, setCurrentlyAddingTextNode] = React.useState(false);
+  const onClickTextTool2 = () => {
+    if (currentlyAddingTextNode) return;
+    else setCurrentlyAddingTextNode(true);
+    // currentlyAddingTextNode = true;
+
+    const text = new Konva.Text({
+      x: 50,
+      y: 60,
+      fontSize: 20,
+      text: 'New text ...',
+      draggable: true,
+    });
+    const { textWidth, textHeight } = text;
+    setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
 
     text.on('transform', function () {
       setSize(() => {
@@ -70,18 +130,8 @@ function App(): React.ReactElement {
           height: Math.round(text.height()),
         };
       });
-      // const lines = [
-      //   'x: ' + text.x(),
-      //   'y: ' + text.y(),
-      //   'rotation: ' + text.rotation(),
-      //   'width: ' + text.width(),
-      //   'height: ' + text.height(),
-      //   'scaleX: ' + text.scaleX(),
-      //   'scaleY: ' + text.scaleY(),
-      // ];
-      // console.log(lines);
     });
-
+    const MIN_WIDTH = 20;
     text.on('transform', () => {
       // with enabled anchors we can only change scaleX
       // so we don't need to reset height
@@ -93,13 +143,12 @@ function App(): React.ReactElement {
       });
     });
 
-    // >>> try
     function madeTextEditible() {
       text.on('dblclick dbltap', () => {
         // hide text node and transformer:
         text.hide();
-        tr.hide();
-        layer.draw();
+        transformer?.hide();
+        layer?.draw();
 
         // create textarea over canvas with absolute position
         // first we need to find position for textarea
@@ -110,8 +159,8 @@ function App(): React.ReactElement {
 
         // so position of textarea will be the sum of positions above:
         const areaPosition = {
-          x: stage.container().offsetLeft + textPosition.x,
-          y: stage.container().offsetTop + textPosition.y,
+          x: (stage?.container().offsetLeft || 0) + textPosition.x,
+          y: (stage?.container().offsetTop || 0) + textPosition.y,
         };
 
         // create textarea and style it
@@ -168,9 +217,9 @@ function App(): React.ReactElement {
           textarea.parentNode?.removeChild(textarea);
           window.removeEventListener('click', handleOutsideClick);
           text.show();
-          tr.show();
-          tr.forceUpdate();
-          layer.draw();
+          transformer?.show();
+          transformer?.forceUpdate();
+          layer?.draw();
         }
 
         function setTextareaWidth(newWidth: number) {
@@ -228,63 +277,77 @@ function App(): React.ReactElement {
         });
       });
     }
-
     madeTextEditible();
 
-    setStage(stage);
-    setLayer(layer);
-    // setTransformer(tr);
-  }, []);
+    const makeHoverable = (shape: Shape) => {
+      const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
 
-  const [stage, setStage] = React.useState<Stage>();
-  const [layer, setLayer] = React.useState<Layer>();
-  const [transformer, setTransformer] = React.useState<Transformer>();
+      layer?.add(hoverRect);
+      shape.on('mouseover', (e) => {
+        const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
+        if (dontHoverIfElementIsSelected) return;
 
-  const [coords, setCoords] = React.useState({ x: 0, y: 0 });
-  const [size, setSize] = React.useState({ width: 0, height: 0 });
+        const width = shape.width();
+        const height = shape.height();
+        const x = shape.x();
+        const y = shape.y();
+        hoverRect.setAttrs({ x, y, width, height });
+        hoverRect.show();
+        layer?.draw();
+      });
+      shape.on('mouseout', (e) => {
+        hoverRect.hide();
+        layer?.draw();
+      });
+    };
+    makeHoverable(text);
 
-  // console.log(stage);
-  const onClickTextTool = () => {
-    const text = new Konva.Text({
-      x: 50,
-      y: 60,
-      fontSize: 20,
-      text: 'Hello from the Konva framework. Try to resize me.',
-      draggable: true,
-    });
-    console.log('🚀 ~ file: App.tsx ~ line 278 ~ onClickTextTool ~ text', text);
-
-    let selected = false;
-    const textTransformer = new Konva.Transformer({
-      nodes: [],
-      padding: 5,
-      // enable only side anchors
-      enabledAnchors: ['middle-left', 'middle-right'],
-      // limit transformer size
-      boundBoxFunc: (oldBox, newBox) => {
-        const MIN_WIDTH = 20;
-
-        if (newBox.width < MIN_WIDTH) {
-          return oldBox;
-        }
-        return newBox;
-      },
-    });
-    layer?.add(textTransformer);
-    text.on('click', (e) => {
-      if (selected) {
-        textTransformer.nodes([]);
-      } else {
-        textTransformer.nodes([text]);
-        // selected = !selected;
-      }
-      selected = !selected;
-
+    const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+      const x = e.evt.offsetX;
+      const y = e.evt.offsetY;
+      text.setAttrs({ x, y });
+      layer?.add(text);
       layer?.draw();
-    });
-    layer?.add(text);
+      setCoords({ x, y });
+    };
+
+    const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
+      e.evt.preventDefault();
+      text.destroy();
+      layer?.draw();
+      cleanup();
+    };
+
+    const cleanup = () => {
+      stage?.off('contextmenu', handleRightMouseClick);
+      stage?.off('mousemove', handleMouseMove);
+      setCurrentlyAddingTextNode(false);
+    };
+
+    stage?.on('mousemove', handleMouseMove);
+    stage?.on('contextmenu', handleRightMouseClick);
+    stage?.on('click', cleanup);
+
     stage?.batchDraw();
   };
+
+  const handlePinCoords = () => {
+    const nodes = transformer?.nodes() || [];
+    if (nodes.length == 0) return;
+
+    const draggable = isSelectionDraggable(transformer);
+    setPinned(draggable);
+    nodes.forEach((node) => node.draggable(!draggable));
+  };
+
+  const isSelectionDraggable = (tr: Transformer | undefined): boolean => {
+    if (!tr?.nodes() || tr?.nodes().length == 0) return false;
+    return tr?.nodes().every((node) => node.draggable());
+  };
+
+  const [pinned, setPinned] = React.useState(false);
+
+  Object.assign(window, { __stage: stage, __layer: layer, __tr: transformer });
 
   return (
     <>
@@ -307,7 +370,7 @@ function App(): React.ReactElement {
             <div className="separator" />
 
             <div className="toolbar__group">
-              <div className="tool tool--active" onClick={onClickTextTool}>
+              <div className={`tool ${currentlyAddingTextNode ? 'tool--active' : ''}`} onClick={onClickTextTool2}>
                 T
               </div>
             </div>
@@ -320,7 +383,9 @@ function App(): React.ReactElement {
               <div className="controls-section__row">
                 <LabeledInput label="X" value={(coords.x || '').toString()} />
 
-                <div className="controls-section__separator">A</div>
+                <div className="controls-section__separator">
+                  <PinIcon active={pinned} onClick={handlePinCoords} />
+                </div>
 
                 <LabeledInput label="Y" value={(coords.y || '').toString()} />
               </div>

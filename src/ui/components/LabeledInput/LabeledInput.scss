@@ -11,6 +11,8 @@
   }
 
   &__label {
+    $--input-label-color: rgba(140, 153, 162, 1);
+    $--input-label-color--disabled: rgba(140, 153, 162, 0.6);
     &-container {
       top: 0;
       right: 0;
@@ -18,8 +20,12 @@
       height: $--text-input-height;
     }
 
+    &--disabled {
+      color: $--input-label-color--disabled;
+    }
+
     height: $--text-input-height;
-    color: #8c99a2;
+    color: $--input-label-color;
     display: flex;
     align-items: center;
     padding-right: $--text-input-padding;
@@ -32,6 +38,10 @@
   border: 1px solid $--color_text-input-border;
   padding: $--text-input-padding;
   width: 100%;
+
+  &--disabled {
+    border: 1px solid $--color_text-input-border--disabled;
+  }
 
   &:focus {
     outline: 0;

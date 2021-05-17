@@ -135,3 +135,12 @@ html {
     }
   }
 }
+
+.svg-icon {
+  fill: $--color-text;
+  cursor: pointer;
+
+  &--active {
+    fill: $--color_icon--active;
+  }
+}
