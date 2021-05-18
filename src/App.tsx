@@ -288,7 +288,7 @@ function App(): React.ReactElement {
           }
         });
 
-        textarea.addEventListener('keydown', function (e) {
+        textarea.addEventListener('keydown', function () {
           const scale = text.getAbsoluteScale().x;
           setTextareaWidth(text.width() * scale);
           textarea.style.height = 'auto';
@@ -324,7 +324,7 @@ function App(): React.ReactElement {
         hoverRect.show();
         layer?.draw();
       });
-      shape.on('mouseout', (e) => {
+      shape.on('mouseout', () => {
         hoverRect.hide();
         layer?.draw();
       });
