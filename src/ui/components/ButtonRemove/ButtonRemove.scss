@@ -1,0 +1,197 @@
+/* your css code */
+
+// >>>
+// >>>
+// >>>
+// >>>
+.button-remove {
+  --background: #275efe;
+  --background-hover: #1d4fe1;
+  --text: #fff;
+  --icon: #fff;
+  display: flex;
+  outline: none;
+  cursor: pointer;
+  border: 0;
+  padding: 9px 20px 9px 12px;
+  border-radius: 11px;
+  line-height: 24px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--b, var(--background));
+  transition: transform 0.3s, background 0.4s;
+  transform: scale(var(--scale, 1)) translateZ(0);
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  &:active {
+    --scale: 0.95;
+  }
+  &:hover {
+    --b: var(--background-hover);
+  }
+  .icon,
+  .text {
+    display: inline-block;
+    vertical-align: top;
+    transform: translateZ(0);
+  }
+  .icon {
+    width: 24px;
+    height: 24px;
+    position: relative;
+    z-index: 1;
+    margin-right: 8px;
+    color: var(--text);
+    svg {
+      width: 96px;
+      height: 96px;
+      display: block;
+      position: absolute;
+      left: -36px;
+      top: -36px;
+      will-change: transform;
+      fill: var(--icon);
+      transform: scale(0.25) translateZ(0);
+      animation: var(--name, var(--name-top, none)) 2400ms ease forwards;
+      &.bottom {
+        --name: var(--name-bottom, none);
+      }
+    }
+  }
+  .text {
+    animation: var(--name-text, none) 2400ms ease forwards;
+    span {
+      display: inline-block;
+      vertical-align: top;
+      opacity: var(--span-o, 1);
+      transform: translate(var(--span-x, 0), var(--span-y, 0)) rotate(var(--span-r, 0deg)) translateZ(0);
+      transition: transform 0.3s ease var(--span-d, 0s), opacity 0.2s linear var(--span-o-d, 0.3s);
+      $i: 1;
+      @while $i < 12 {
+        &:nth-child(#{$i}) {
+          --span-delay: #{$i / 20 + 0.35 + s};
+          --span-o-d: #{$i / 40 + 0.3 + s};
+        }
+        $i: $i + 1;
+      }
+    }
+  }
+  &.delete {
+    --name-top: trash-top;
+    --name-bottom: trash-bottom;
+    --name-text: text;
+    --span-x: -8px;
+    --span-y: 8px;
+    --span-r: -40deg;
+    --span-o: 0;
+    .text {
+      span {
+        --span-o-d: 1s;
+        --span-d: var(--span-delay);
+      }
+    }
+  }
+}
+
+@keyframes trash-bottom {
+  25%,
+  32% {
+    transform: translate(32px, 19px) scale(1) translateZ(0);
+  }
+  70%,
+  80% {
+    transform: translate(32px, 0) scale(0.25) translateZ(0);
+  }
+  90% {
+    transform: translateX(-2px) scale(0.25) translateZ(0);
+  }
+  100% {
+    transform: scale(0.25) translateZ(0);
+  }
+}
+
+@keyframes trash-top {
+  25%,
+  32% {
+    transform: translate(38px, 4px) scale(1) rotate(-20deg) translateZ(0);
+  }
+  70%,
+  80% {
+    transform: translate(32px, 0) scale(0.25) translateZ(0);
+  }
+  90% {
+    transform: translateX(-2px) scale(0.25) translateZ(0);
+  }
+  100% {
+    transform: scale(0.25) translateZ(0);
+  }
+}
+
+@keyframes text {
+  25% {
+    transform: translate(-4px, -6px) rotate(-20deg) translateZ(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-12px, 48px) rotate(-80deg) scale(0.2) translateZ(0);
+  }
+  71% {
+    opacity: 0;
+  }
+  72%,
+  90% {
+    opacity: 0;
+    transform: translateZ(0);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+// html {
+//   box-sizing: border-box;
+//   -webkit-font-smoothing: antialiased;
+// }
+
+// * {
+//   box-sizing: inherit;
+//   &:before,
+//   &:after {
+//     box-sizing: inherit;
+//   }
+// }
+
+// // Center & dribbble
+// body {
+//   min-height: 100vh;
+//   display: flex;
+//   font-family: 'Inter', Arial;
+//   justify-content: center;
+//   align-items: center;
+//   background: #f6f8ff;
+//   .dribbble {
+//     position: fixed;
+//     display: block;
+//     right: 20px;
+//     bottom: 20px;
+//     img {
+//       display: block;
+//       height: 28px;
+//     }
+//   }
+//   .twitter {
+//     position: fixed;
+//     display: block;
+//     right: 64px;
+//     bottom: 14px;
+//     svg {
+//       width: 32px;
+//       height: 32px;
+//       fill: #1da1f2;
+//     }
+//   }
+// }
