@@ -1,6 +1,8 @@
 import Konva from 'konva';
 import { Layer } from 'konva/types/Layer';
 import { Transformer } from 'konva/types/shapes/Transformer';
+import { Text } from 'konva/types/shapes/Text';
+
 import { KonvaEventObject } from 'konva/types/Node';
 import { Stage } from 'konva/types/Stage';
 import React from 'react';
@@ -9,18 +11,90 @@ import LabeledInput from './ui/components/LabeledInput';
 import NavBar from './ui/components/NavBar';
 import PinIcon from './icons/PinIcon';
 import { Shape } from 'konva/types/Shape';
+import TextIcon from './icons/TextIcon';
+import ButtonRemove from './ui/components/ButtonRemove';
 
-function SideBar(): React.ReactElement {
+interface ISideBar {
+  template: ITemplate;
+}
+function SideBar(props: ISideBar): React.ReactElement {
+  const { template } = props;
+
   return (
     <div className="sidebar__container">
       <div className="sidebar">
-        <div className="menu">Document structure</div>
+        <div className="menu">
+          <div>Document structure</div>
+          {/* <div>{template.nodes.length}</div> */}
+          {template.nodes.map((node, idx) => {
+            const { meta } = node;
+
+            return (
+              <div key={idx}>
+                <span>
+                  <TextIcon />
+                </span>
+                {meta.type == 'text' ? meta.content : meta.type}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
-
+interface ITemplate {
+  size: ISize;
+  nodes: INode[];
+}
+const defaultTemplate: ITemplate = {
+  size: { width: 720, height: 1080 } as ISize,
+  nodes: [],
+};
+interface INode {
+  position: IPosition;
+  size: ISize;
+  meta: TMeta;
+}
+type TMeta = TNoMeta | IMetaText | IMetaImage;
+// type TMetaType = 'text' | 'image' | 'table?';
+type TNoMeta = Record<string, never>;
+interface IMetaText {
+  type: 'text';
+  fontSize: string;
+  content: string;
+  // ...
+}
+interface INodeText extends INode {
+  meta: IMetaText;
+}
+const buildTextNode = (text: Text): INodeText => {
+  return {
+    size: { width: text.textWidth, height: text.textHeight },
+    position: { x: text.x(), y: text.y() },
+    meta: {
+      type: 'text',
+      content: text.text(),
+    } as IMetaText,
+  };
+};
+interface IMetaImage {
+  type: 'image';
+  src: string;
+  alt: string;
+  // ...
+}
+interface ISize {
+  width: number;
+  height: number;
+}
+interface IPosition {
+  x: number;
+  y: number;
+}
 function App(): React.ReactElement {
+  const [template, setTemplate] = React.useState<ITemplate>(defaultTemplate);
+
   const konvaStageRef = React.useRef<HTMLDivElement>(null);
   const konvaStageContainer = 'konva-stage-container';
   React.useEffect(() => {
@@ -32,10 +106,22 @@ function App(): React.ReactElement {
       width: width,
       height: height,
       draggable: true,
+      scaleX: 0.5,
+      scaleY: 0.5,
     });
 
     const layer = new Konva.Layer();
     stage.add(layer);
+
+    const templateRect = new Konva.Rect({
+      x: 20,
+      y: 20,
+      fill: '#fff',
+      width: template.size.width,
+      height: template.size.height,
+    });
+    layer.add(templateRect);
+    layer.draw();
 
     // text.on('transform', function () {
     //   setSize(() => {
@@ -332,8 +418,22 @@ function App(): React.ReactElement {
     makeHoverable(text);
 
     const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
-      const x = e.evt.offsetX;
-      const y = e.evt.offsetY;
+      const currentPositionConsideringStageScale = (): IPosition => {
+        const scaleX = stage?.scaleX() || 1;
+        const scaleY = stage?.scaleY() || 1;
+        const x = e.evt.offsetX / scaleX - (stage?.x() || 0) / scaleX;
+        const y = e.evt.offsetY / scaleY - (stage?.y() || 0) / scaleY;
+        return { x, y };
+      };
+
+      const centerCursorOnElement = ({ x, y }: IPosition): IPosition => {
+        return {
+          x: x - text.width() / 2,
+          y: y - text.height() / 2,
+        };
+      };
+      const positionWithStageScale = currentPositionConsideringStageScale();
+      const { x, y } = centerCursorOnElement(positionWithStageScale);
       text.setAttrs({ x, y });
       layer?.add(text);
       layer?.draw();
@@ -350,12 +450,25 @@ function App(): React.ReactElement {
     const cleanup = () => {
       stage?.off('contextmenu', handleRightMouseClick);
       stage?.off('mousemove', handleMouseMove);
+      cleanClickOnTextAfterPlacement();
       setCurrentlyAddingTextNode(false);
+    };
+
+    const cleanClickOnTextAfterPlacement = () => {
+      text.off('click', placeText);
+    };
+    const placeText = () => {
+      cleanup();
+      setTemplate((t) => {
+        const node: INode = buildTextNode(text);
+        t.nodes = [...t.nodes, node];
+        return t;
+      });
     };
 
     stage?.on('mousemove', handleMouseMove);
     stage?.on('contextmenu', handleRightMouseClick);
-    stage?.on('click', cleanup);
+    text?.on('click', placeText);
 
     stage?.batchDraw();
   };
@@ -378,8 +491,9 @@ function App(): React.ReactElement {
 
   Object.assign(window, { __stage: stage, __layer: layer, __tr: transformer });
 
-  console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage?.attrs.x, stage?.attrs.y);
+  // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage?.attrs.x, stage?.attrs.y);
   // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage);
+  // console.log('template', template);
 
   return (
     <>
@@ -387,7 +501,7 @@ function App(): React.ReactElement {
 
       <div className="main">
         <div className="page">
-          <SideBar />
+          <SideBar template={template} />
 
           <div className="builder-main">
             <div id={konvaStageContainer} ref={konvaStageRef}></div>
@@ -429,6 +543,8 @@ function App(): React.ReactElement {
 
                 <LabeledInput label="H" value={(size.height || '').toString()} />
               </div>
+
+              <ButtonRemove text={'abra kada'} />
             </div>
           </div>
         </div>
