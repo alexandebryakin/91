@@ -2,6 +2,7 @@ import Konva from 'konva';
 import { Layer } from 'konva/types/Layer';
 import { Transformer } from 'konva/types/shapes/Transformer';
 import { Text } from 'konva/types/shapes/Text';
+import { Node } from 'konva/types/Node';
 
 import { KonvaEventObject } from 'konva/types/Node';
 import { Stage } from 'konva/types/Stage';
@@ -51,9 +52,36 @@ const defaultTemplate: ITemplate = {
   size: { width: 720, height: 1080 } as ISize,
   nodes: [],
 };
+const loadedTemplate: ITemplate = {
+  size: { width: 720, height: 1080 } as ISize,
+  nodes: [
+    {
+      position: { x: 94, y: 88 },
+      size: { width: 100, height: 20 },
+      draggable: true,
+      meta: {
+        type: 'text',
+        fontSize: 18,
+        content: 'New text ...',
+      },
+    } as INodeText,
+
+    {
+      position: { x: 194, y: 188 },
+      size: { width: 100, height: 20 },
+      draggable: true,
+      meta: {
+        type: 'text',
+        fontSize: 20,
+        content: 'New text ...2',
+      },
+    } as INodeText,
+  ],
+};
 interface INode {
   position: IPosition;
   size: ISize;
+  draggable: boolean;
   meta: TMeta;
 }
 type TMeta = TNoMeta | IMetaText | IMetaImage;
@@ -61,7 +89,7 @@ type TMeta = TNoMeta | IMetaText | IMetaImage;
 type TNoMeta = Record<string, never>;
 interface IMetaText {
   type: 'text';
-  fontSize: string;
+  fontSize: number;
   content: string;
   // ...
 }
@@ -72,6 +100,7 @@ const buildTextNode = (text: Text): INodeText => {
   return {
     size: { width: text.textWidth, height: text.textHeight },
     position: { x: text.x(), y: text.y() },
+    draggable: text.draggable(),
     meta: {
       type: 'text',
       content: text.text(),
@@ -92,8 +121,158 @@ interface IPosition {
   x: number;
   y: number;
 }
+
+function makeTextEditible(text: Text, transformer: Transformer, stage: Stage, layer: Layer) {
+  text.on('dblclick dbltap', () => {
+    // hide text node and transformer:
+    text.hide();
+    transformer?.hide();
+    layer?.draw();
+
+    // create textarea over canvas with absolute position
+    // first we need to find position for textarea
+    // how to find it?
+
+    // at first lets find position of text node relative to the stage:
+    const textPosition = text.absolutePosition();
+
+    // so position of textarea will be the sum of positions above:
+    const areaPosition = {
+      x: (stage?.container().offsetLeft || 0) + textPosition.x,
+      y: (stage?.container().offsetTop || 0) + textPosition.y,
+    };
+
+    // create textarea and style it
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+
+    // apply many styles to match text on canvas as close as possible
+    // remember that text rendering on canvas and on the textarea can be different
+    // and sometimes it is hard to make it 100% the same. But we will try...
+    textarea.value = text.text();
+    textarea.style.position = 'absolute';
+    textarea.style.top = areaPosition.y + 'px';
+    textarea.style.left = areaPosition.x + 'px';
+    textarea.style.width = text.width() - text.padding() * 2 + 'px';
+    textarea.style.height = text.height() - text.padding() * 2 + 5 + 'px';
+    textarea.style.fontSize = text.fontSize() + 'px';
+    textarea.style.border = '1px solid gray';
+    textarea.style.padding = '0px';
+    textarea.style.margin = '0px';
+    textarea.style.overflow = 'hidden';
+    textarea.style.background = 'none';
+    textarea.style.outline = 'none';
+    textarea.style.resize = 'none';
+    textarea.style.lineHeight = text.lineHeight().toString();
+    textarea.style.fontFamily = text.fontFamily();
+    textarea.style.transformOrigin = 'left top';
+    textarea.style.textAlign = text.align();
+    textarea.style.color = text.fill();
+    const rotation = text.rotation();
+    let transform = '';
+    if (rotation) {
+      transform += 'rotateZ(' + rotation + 'deg)';
+    }
+
+    let px = 0;
+    // also we need to slightly move textarea on firefox
+    // because it jumps a bit
+    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+    if (isFirefox) {
+      px += 2 + Math.round(text.fontSize() / 20);
+    }
+    transform += 'translateY(-' + px + 'px)';
+
+    textarea.style.transform = transform;
+
+    // reset height
+    textarea.style.height = 'auto';
+    // after browsers resized it we can set actual value
+    textarea.style.height = textarea.scrollHeight + 3 + 'px';
+
+    textarea.focus();
+
+    function removeTextarea() {
+      textarea.parentNode?.removeChild(textarea);
+      window.removeEventListener('click', handleOutsideClick);
+      text.show();
+      transformer?.show();
+      transformer?.forceUpdate();
+      layer?.draw();
+    }
+
+    function setTextareaWidth(newWidth: number) {
+      if (!newWidth) {
+        // set width for placeholder
+        // newWidth = text.placeholder.length * text.fontSize();
+        // text.value.length
+        newWidth = text.value.length * text.fontSize();
+      }
+      // some extra fixes on different browsers
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+      if (isSafari || isFirefox) {
+        newWidth = Math.ceil(newWidth);
+      }
+
+      // var isEdge =
+      //   document.documentMode || /Edge/.test(navigator.userAgent);
+      // if (isEdge) {
+      //   newWidth += 1;
+      // }
+      textarea.style.width = newWidth + 'px';
+    }
+
+    textarea.addEventListener('keydown', function (e) {
+      // hide on enter
+      // but don't hide on shift + enter
+      // e.key
+      console.warn('The usage of e.keyCode is deprecated ⛔️ (`makeTextEditable`)');
+      if (e.keyCode === 13 && !e.shiftKey) {
+        text.text(textarea.value);
+        removeTextarea();
+      }
+      // on esc do not set value back to node
+      if (e.keyCode === 27) {
+        removeTextarea();
+      }
+    });
+
+    textarea.addEventListener('keydown', function () {
+      const scale = text.getAbsoluteScale().x;
+      setTextareaWidth(text.width() * scale);
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + text.fontSize() + 'px';
+    });
+
+    function handleOutsideClick(this: Window, e: MouseEvent) {
+      if (e.target !== textarea) {
+        text.text(textarea.value);
+        removeTextarea();
+      }
+    }
+    setTimeout(() => {
+      window.addEventListener('click', handleOutsideClick);
+    });
+  });
+}
+
+function makeTextTransformable(text: Text) {
+  const MIN_WIDTH = 20;
+  text.on('transform', () => {
+    // with enabled anchors we can only change scaleX
+    // so we don't need to reset height
+    // just width
+    text.setAttrs({
+      width: Math.max(text.width() * text.scaleX(), MIN_WIDTH),
+      scaleX: 1,
+      scaleY: 1,
+    });
+  });
+}
+
 function App(): React.ReactElement {
-  const [template, setTemplate] = React.useState<ITemplate>(defaultTemplate);
+  const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
 
   const konvaStageRef = React.useRef<HTMLDivElement>(null);
   const konvaStageContainer = 'konva-stage-container';
@@ -113,52 +292,10 @@ function App(): React.ReactElement {
     const layer = new Konva.Layer();
     stage.add(layer);
 
-    const templateRect = new Konva.Rect({
-      x: 20,
-      y: 20,
-      fill: '#fff',
-      width: template.size.width,
-      height: template.size.height,
-    });
-    layer.add(templateRect);
-    layer.draw();
-
-    // text.on('transform', function () {
-    //   setSize(() => {
-    //     return {
-    //       width: Math.round(text.width()),
-    //       height: Math.round(text.height()),
-    //     };
-    //   });
-    //   // const lines = [
-    //   //   'x: ' + text.x(),
-    //   //   'y: ' + text.y(),
-    //   //   'rotation: ' + text.rotation(),
-    //   //   'width: ' + text.width(),
-    //   //   'height: ' + text.height(),
-    //   //   'scaleX: ' + text.scaleX(),
-    //   //   'scaleY: ' + text.scaleY(),
-    //   // ];
-    //   // console.log(lines);
-    // });
-
-    // text.on('transform', () => {
-    //   // with enabled anchors we can only change scaleX
-    //   // so we don't need to reset height
-    //   // just width
-    //   text.setAttrs({
-    //     width: Math.max(text.width() * text.scaleX(), MIN_WIDTH),
-    //     scaleX: 1,
-    //     scaleY: 1,
-    //   });
-    // });
-
-    // >>> try
-    //
-
     const tr = new Konva.Transformer({
       nodes: [],
       padding: 5,
+
       // enable only side anchors
       enabledAnchors: ['middle-left', 'middle-right'],
       // limit transformer size
@@ -167,6 +304,60 @@ function App(): React.ReactElement {
 
         return newBox.width < MIN_WIDTH ? oldBox : newBox;
       },
+    });
+    function loadTemplate(template: ITemplate, transformer: Transformer) {
+      const templateRect = new Konva.Rect({
+        x: 20,
+        y: 20,
+        fill: '#fff',
+        width: template.size.width,
+        height: template.size.height,
+      });
+      layer.add(templateRect);
+      layer.draw();
+
+      template.nodes.forEach((node) => {
+        function defineBuilder(node: INode): (node: INode) => Shape | undefined {
+          //
+          function textNodeBuilder(n: INode): Text {
+            const node = n as INodeText;
+            const text = new Konva.Text({
+              x: node.position.x,
+              y: node.position.y,
+              width: node.size.width,
+              height: node.size.height,
+              fontSize: node.meta.fontSize,
+              text: node.meta.content,
+              draggable: node.draggable,
+            });
+
+            makeTextTransformable(text);
+            makeTextEditible(text, transformer, stage, layer);
+
+            return text;
+          }
+          if (node.meta.type == 'text') return textNodeBuilder;
+
+          console.error('No builder found for node:', node);
+          return () => undefined;
+        }
+        const build = defineBuilder(node);
+
+        const shape = build(node);
+        shape && layer.add(shape);
+      });
+
+      layer.draw();
+    }
+    loadTemplate(loadedTemplate, tr);
+
+    tr.on('transform', () => {
+      setSize(() => {
+        return {
+          width: Math.round(tr.width()),
+          height: Math.round(tr.height()),
+        };
+      });
     });
 
     tr.on('dragmove', function (e) {
@@ -238,161 +429,18 @@ function App(): React.ReactElement {
     const { textWidth, textHeight } = text;
     setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
 
-    text.on('transform', function () {
-      setSize(() => {
-        return {
-          width: Math.round(text.width()),
-          height: Math.round(text.height()),
-        };
-      });
-    });
-    const MIN_WIDTH = 20;
-    text.on('transform', () => {
-      // with enabled anchors we can only change scaleX
-      // so we don't need to reset height
-      // just width
-      text.setAttrs({
-        width: Math.max(text.width() * text.scaleX(), MIN_WIDTH),
-        scaleX: 1,
-        scaleY: 1,
-      });
-    });
+    // text.on('transform', function () {
+    //   setSize(() => {
+    //     return {
+    //       width: Math.round(text.width()),
+    //       height: Math.round(text.height()),
+    //     };
+    //   });
+    // });
 
-    function madeTextEditible() {
-      text.on('dblclick dbltap', () => {
-        // hide text node and transformer:
-        text.hide();
-        transformer?.hide();
-        layer?.draw();
+    makeTextTransformable(text);
 
-        // create textarea over canvas with absolute position
-        // first we need to find position for textarea
-        // how to find it?
-
-        // at first lets find position of text node relative to the stage:
-        const textPosition = text.absolutePosition();
-
-        // so position of textarea will be the sum of positions above:
-        const areaPosition = {
-          x: (stage?.container().offsetLeft || 0) + textPosition.x,
-          y: (stage?.container().offsetTop || 0) + textPosition.y,
-        };
-
-        // create textarea and style it
-        const textarea = document.createElement('textarea');
-        document.body.appendChild(textarea);
-
-        // apply many styles to match text on canvas as close as possible
-        // remember that text rendering on canvas and on the textarea can be different
-        // and sometimes it is hard to make it 100% the same. But we will try...
-        textarea.value = text.text();
-        textarea.style.position = 'absolute';
-        textarea.style.top = areaPosition.y + 'px';
-        textarea.style.left = areaPosition.x + 'px';
-        textarea.style.width = text.width() - text.padding() * 2 + 'px';
-        textarea.style.height = text.height() - text.padding() * 2 + 5 + 'px';
-        textarea.style.fontSize = text.fontSize() + 'px';
-        textarea.style.border = '1px solid gray';
-        textarea.style.padding = '0px';
-        textarea.style.margin = '0px';
-        textarea.style.overflow = 'hidden';
-        textarea.style.background = 'none';
-        textarea.style.outline = 'none';
-        textarea.style.resize = 'none';
-        textarea.style.lineHeight = text.lineHeight().toString();
-        textarea.style.fontFamily = text.fontFamily();
-        textarea.style.transformOrigin = 'left top';
-        textarea.style.textAlign = text.align();
-        textarea.style.color = text.fill();
-        const rotation = text.rotation();
-        let transform = '';
-        if (rotation) {
-          transform += 'rotateZ(' + rotation + 'deg)';
-        }
-
-        let px = 0;
-        // also we need to slightly move textarea on firefox
-        // because it jumps a bit
-        const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-        if (isFirefox) {
-          px += 2 + Math.round(text.fontSize() / 20);
-        }
-        transform += 'translateY(-' + px + 'px)';
-
-        textarea.style.transform = transform;
-
-        // reset height
-        textarea.style.height = 'auto';
-        // after browsers resized it we can set actual value
-        textarea.style.height = textarea.scrollHeight + 3 + 'px';
-
-        textarea.focus();
-
-        function removeTextarea() {
-          textarea.parentNode?.removeChild(textarea);
-          window.removeEventListener('click', handleOutsideClick);
-          text.show();
-          transformer?.show();
-          transformer?.forceUpdate();
-          layer?.draw();
-        }
-
-        function setTextareaWidth(newWidth: number) {
-          if (!newWidth) {
-            // set width for placeholder
-            // newWidth = text.placeholder.length * text.fontSize();
-            // text.value.length
-            newWidth = text.value.length * text.fontSize();
-          }
-          // some extra fixes on different browsers
-          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-          const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-          if (isSafari || isFirefox) {
-            newWidth = Math.ceil(newWidth);
-          }
-
-          // var isEdge =
-          //   document.documentMode || /Edge/.test(navigator.userAgent);
-          // if (isEdge) {
-          //   newWidth += 1;
-          // }
-          textarea.style.width = newWidth + 'px';
-        }
-
-        textarea.addEventListener('keydown', function (e) {
-          // hide on enter
-          // but don't hide on shift + enter
-          // e.key
-          console.log('🚀 ~ file: App.tsx ~ line 212 ~ e.key', e.key);
-          if (e.keyCode === 13 && !e.shiftKey) {
-            text.text(textarea.value);
-            removeTextarea();
-          }
-          // on esc do not set value back to node
-          if (e.keyCode === 27) {
-            removeTextarea();
-          }
-        });
-
-        textarea.addEventListener('keydown', function () {
-          const scale = text.getAbsoluteScale().x;
-          setTextareaWidth(text.width() * scale);
-          textarea.style.height = 'auto';
-          textarea.style.height = textarea.scrollHeight + text.fontSize() + 'px';
-        });
-
-        function handleOutsideClick(this: Window, e: MouseEvent) {
-          if (e.target !== textarea) {
-            text.text(textarea.value);
-            removeTextarea();
-          }
-        }
-        setTimeout(() => {
-          window.addEventListener('click', handleOutsideClick);
-        });
-      });
-    }
-    madeTextEditible();
+    transformer && stage && layer && makeTextEditible(text, transformer, stage, layer);
 
     const makeHoverable = (shape: Shape) => {
       const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
