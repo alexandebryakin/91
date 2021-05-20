@@ -271,6 +271,102 @@ function makeTextTransformable(text: Text) {
   });
 }
 
+const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => {
+  const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
+
+  layer?.add(hoverRect);
+  shape.on('mouseover', (e) => {
+    const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
+    if (dontHoverIfElementIsSelected) return;
+
+    const width = shape.width();
+    const height = shape.height();
+    const x = shape.x();
+    const y = shape.y();
+    hoverRect.setAttrs({ x, y, width, height });
+    hoverRect.show();
+    layer?.draw();
+  });
+  shape.on('mouseout', () => {
+    hoverRect.hide();
+    layer?.draw();
+  });
+};
+
+interface ICenterRect extends IPosition, ISize {}
+function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
+  const redLine = new Konva.Line({
+    points: [],
+    stroke: 'red',
+    strokeWidth: 1,
+  });
+  redLine.hide();
+  layer.add(redLine);
+
+  const hangleHorizontalTopGuideline = (e: KonvaEventObject<MouseEvent>) => {
+    const selectedNode = transformer.nodes()[0];
+    if (!selectedNode || selectedNode === shape) return;
+
+    const center1 = {
+      x: selectedNode.x() + selectedNode.width() / 2,
+      y: selectedNode.y() + selectedNode.height() / 2,
+      width: selectedNode.width(),
+      height: selectedNode.height(),
+    } as ICenterRect;
+
+    const center2 = {
+      x: e.target.x() + e.target.width() / 2,
+      y: e.target.y() + e.target.height() / 2,
+      width: e.target.width(),
+      height: e.target.height(),
+    } as ICenterRect;
+
+    const maxHalf = Math.max(e.target.width() / 2, selectedNode.width() / 2);
+    if (Math.abs(center1.x - center2.x) <= maxHalf) return; // target == 'center'
+
+    const orderByXAsc = (center1: ICenterRect, center2: ICenterRect) =>
+      center1.x < center2.x ? [center1, center2] : [center2, center1];
+
+    const orderByYAsc = (center1: ICenterRect, center2: ICenterRect) =>
+      center1.y < center2.y ? [center1, center2] : [center2, center1];
+
+    const [minPointByX, maxPointByX] = orderByXAsc(center1, center2);
+    const [minPointByY, maxPointByY] = orderByYAsc(center1, center2);
+
+    const direction = minPointByY.x > maxPointByY.x ? -1 : +1;
+    const startingX = minPointByY.x + (minPointByY.width / 2) * direction;
+    // const endingX = direction == 1 ? maxPointByX.x : minPointByX.x; // target == 'center'
+    const endingX = direction == 1 ? maxPointByX.x - maxPointByX.width / 2 : minPointByX.x + maxPointByX.width / 2; // target == 'edge'
+    const startingY = minPointByY.y;
+    const endingY = startingY;
+
+    if ((startingX - endingX) * direction > 0) return; // target == 'edge'
+
+    const arrow = [endingX - 7 * direction, endingY - 3, endingX - 7 * direction, endingY + 3, endingX, endingY];
+    // const arrow: number[] = [];
+    const line = [startingX, startingY, endingX, endingY];
+    const points = [...line, ...arrow];
+
+    const solid: number[] = [];
+    const dashed = [10, 10];
+    const dash = startingY == selectedNode.y() + selectedNode.height() / 2 ? solid : dashed;
+
+    redLine.setAttrs({ points, dash });
+    redLine.show();
+    layer.draw();
+  };
+
+  shape.on('mouseover', hangleHorizontalTopGuideline);
+
+  shape.on('dragmove', hangleHorizontalTopGuideline);
+
+  shape.on('mouseout', () => {
+    // redLine.destroy();
+    redLine.hide();
+    layer.draw();
+  });
+}
+
 function App(): React.ReactElement {
   const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
 
@@ -333,6 +429,8 @@ function App(): React.ReactElement {
 
             makeTextTransformable(text);
             makeTextEditible(text, transformer, stage, layer);
+            makeHoverable(text, layer, transformer);
+            makeGuidelineable(text, transformer, layer);
 
             return text;
           }
@@ -429,41 +527,9 @@ function App(): React.ReactElement {
     const { textWidth, textHeight } = text;
     setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
 
-    // text.on('transform', function () {
-    //   setSize(() => {
-    //     return {
-    //       width: Math.round(text.width()),
-    //       height: Math.round(text.height()),
-    //     };
-    //   });
-    // });
-
     makeTextTransformable(text);
-
-    transformer && stage && layer && makeTextEditible(text, transformer, stage, layer);
-
-    const makeHoverable = (shape: Shape) => {
-      const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
-
-      layer?.add(hoverRect);
-      shape.on('mouseover', (e) => {
-        const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
-        if (dontHoverIfElementIsSelected) return;
-
-        const width = shape.width();
-        const height = shape.height();
-        const x = shape.x();
-        const y = shape.y();
-        hoverRect.setAttrs({ x, y, width, height });
-        hoverRect.show();
-        layer?.draw();
-      });
-      shape.on('mouseout', () => {
-        hoverRect.hide();
-        layer?.draw();
-      });
-    };
-    makeHoverable(text);
+    layer && transformer && stage && makeTextEditible(text, transformer, stage, layer);
+    layer && transformer && makeHoverable(text, layer, transformer);
 
     const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
       const currentPositionConsideringStageScale = (): IPosition => {
