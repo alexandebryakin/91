@@ -14,6 +14,7 @@ import PinIcon from './icons/PinIcon';
 import { Shape } from 'konva/types/Shape';
 import TextIcon from './icons/TextIcon';
 import ButtonRemove from './ui/components/ButtonRemove';
+import { Line } from 'konva/types/shapes/Line';
 
 interface ISideBar {
   template: ITemplate;
@@ -295,15 +296,23 @@ const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => 
 
 interface ICenterRect extends IPosition, ISize {}
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
-  const redLine = new Konva.Line({
+  const redLine1 = new Konva.Line({
     points: [],
     stroke: 'red',
     strokeWidth: 1,
   });
-  redLine.hide();
-  layer.add(redLine);
+  redLine1.hide();
+  layer.add(redLine1);
 
-  const hangleHorizontalTopGuideline = (e: KonvaEventObject<MouseEvent>) => {
+  const redLine2 = new Konva.Line({
+    points: [],
+    stroke: 'green',
+    strokeWidth: 1,
+  });
+  redLine2.hide();
+  layer.add(redLine2);
+
+  function drawHorizontalGuideline(e: KonvaEventObject<MouseEvent>, line: Line, placement: 'top' | 'bottom') {
     const selectedNode = transformer.nodes()[0];
     if (!selectedNode || selectedNode === shape) return;
 
@@ -337,32 +346,33 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     const startingX = minPointByY.x + (minPointByY.width / 2) * direction;
     // const endingX = direction == 1 ? maxPointByX.x : minPointByX.x; // target == 'center'
     const endingX = direction == 1 ? maxPointByX.x - maxPointByX.width / 2 : minPointByX.x + maxPointByX.width / 2; // target == 'edge'
-    const startingY = minPointByY.y;
+    const startingY = placement == 'top' ? minPointByY.y : maxPointByY.y;
     const endingY = startingY;
 
     if ((startingX - endingX) * direction > 0) return; // target == 'edge'
 
-    const arrow = [endingX - 7 * direction, endingY - 3, endingX - 7 * direction, endingY + 3, endingX, endingY];
+    const arrowPoints = [endingX - 7 * direction, endingY - 3, endingX - 7 * direction, endingY + 3, endingX, endingY];
     // const arrow: number[] = [];
-    const line = [startingX, startingY, endingX, endingY];
-    const points = [...line, ...arrow];
+    const linePoints = [startingX, startingY, endingX, endingY];
+    const points = [...linePoints, ...arrowPoints];
 
     const solid: number[] = [];
     const dashed = [10, 10];
     const dash = startingY == selectedNode.y() + selectedNode.height() / 2 ? solid : dashed;
 
-    redLine.setAttrs({ points, dash });
-    redLine.show();
+    line.setAttrs({ points, dash });
+    line.show();
     layer.draw();
-  };
+  }
 
-  shape.on('mouseover', hangleHorizontalTopGuideline);
-
-  shape.on('dragmove', hangleHorizontalTopGuideline);
+  shape.on('mouseover dragmove', (e) => {
+    drawHorizontalGuideline(e, redLine1, 'top');
+    drawHorizontalGuideline(e, redLine2, 'bottom');
+  });
 
   shape.on('mouseout', () => {
-    // redLine.destroy();
-    redLine.hide();
+    redLine1.hide();
+    redLine2.hide();
     layer.draw();
   });
 }
