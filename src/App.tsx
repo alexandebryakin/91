@@ -68,8 +68,8 @@ const loadedTemplate: ITemplate = {
     } as INodeText,
 
     {
-      position: { x: 194, y: 188 },
-      size: { width: 100, height: 20 },
+      position: { x: 294, y: 288 },
+      size: { width: 100, height: 60 },
       draggable: true,
       meta: {
         type: 'text',
@@ -276,7 +276,7 @@ const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => 
   const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
 
   layer?.add(hoverRect);
-  shape.on('mouseover', (e) => {
+  shape.on('mouseover dragmove', (e) => {
     const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
     if (dontHoverIfElementIsSelected) return;
 
@@ -294,7 +294,14 @@ const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => 
   });
 };
 
-interface ICenterRect extends IPosition, ISize {}
+interface IFigure {
+  x: number;
+  y: number;
+  endX: number;
+  endY: number;
+  centerX: number;
+  centerY: number;
+}
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
   const redLine1 = new Konva.Line({
     points: [],
@@ -306,59 +313,95 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
   const redLine2 = new Konva.Line({
     points: [],
-    stroke: 'green',
+    stroke: 'pink',
     strokeWidth: 1,
   });
   redLine2.hide();
   layer.add(redLine2);
 
-  function drawHorizontalGuideline(e: KonvaEventObject<MouseEvent>, line: Line, placement: 'top' | 'bottom') {
+  const redLine3 = new Konva.Line({
+    points: [],
+    stroke: 'blue',
+    strokeWidth: 1,
+  });
+  redLine3.hide();
+  layer.add(redLine3);
+
+  const redLine4 = new Konva.Line({
+    points: [],
+    stroke: 'green',
+    strokeWidth: 1,
+  });
+  redLine4.hide();
+  layer.add(redLine4);
+  const circleS = new Konva.Circle({ radius: 5, fill: 'red' });
+  const circleE = new Konva.Circle({ radius: 3, fill: 'blue' });
+  layer.add(circleS);
+  layer.add(circleE);
+
+  const buildObject = (node: Node): IFigure => {
+    return {
+      x: node.x(),
+      y: node.y(),
+      endX: node.x() + node.width(),
+      endY: node.y() + node.height(),
+      centerX: node.x() + node.width() / 2,
+      centerY: node.y() + node.height() / 2,
+    };
+  };
+  const defineSector = (target: IFigure, selected: IFigure): 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 => {
+    if (target.endX < selected.x && target.endY < selected.y) return 1;
+    if (target.x > selected.endX && target.endY < selected.y) return 3;
+    if (target.x > selected.endX && target.y > selected.endY) return 5;
+    if (target.endX < selected.x && target.y > selected.endY) return 7;
+
+    if (target.endY < selected.y) return 2;
+    if (target.x > selected.endX) return 4;
+    if (target.y > selected.endY) return 6;
+    if (target.endX < selected.x) return 8;
+
+    return 9;
+  };
+
+  function drawVerticalGuideline(e: KonvaEventObject<MouseEvent>, line: Line, placement: 'left' | 'right') {
     const selectedNode = transformer.nodes()[0];
     if (!selectedNode || selectedNode === shape) return;
 
-    const center1 = {
-      x: selectedNode.x() + selectedNode.width() / 2,
-      y: selectedNode.y() + selectedNode.height() / 2,
-      width: selectedNode.width(),
-      height: selectedNode.height(),
-    } as ICenterRect;
+    const target = buildObject(e.target);
+    const selected = buildObject(selectedNode);
 
-    const center2 = {
-      x: e.target.x() + e.target.width() / 2,
-      y: e.target.y() + e.target.height() / 2,
-      width: e.target.width(),
-      height: e.target.height(),
-    } as ICenterRect;
+    const sector = defineSector(target, selected);
+    const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
+    const l = {
+      [1]: { sx: selected.centerX, sy: target.endY, ex: selected.centerX, ey: selected.y },
+      [2]: {
+        sx: target.x + (selected.endX - target.x) / 2,
+        sy: target.endY,
+        ex: target.x + (selected.endX - target.x) / 2,
+        ey: selected.y,
+      },
+      [3]: { sx: target.x, sy: target.endY, ex: target.x, ey: selected.centerY },
+      [4]: noline,
+      [5]: { sx: target.x, sy: target.y, ex: target.x, ey: selected.centerY },
+      [6]: {
+        sx: target.x + (selected.endX - target.x) / 2,
+        sy: target.y,
+        ex: target.x + (selected.endX - target.x) / 2,
+        ey: selected.endY,
+      },
+      [7]: { sx: selected.centerX, sy: target.y, ex: selected.centerX, ey: selected.endY },
+      [8]: noline,
+      [9]: noline,
+    }[sector];
+    circleS.setAttrs({ x: l.sx, y: l.sy });
+    circleE.setAttrs({ x: l.ex, y: l.ey });
 
-    const maxHalf = Math.max(e.target.width() / 2, selectedNode.width() / 2);
-    if (Math.abs(center1.x - center2.x) <= maxHalf) return; // target == 'center'
-
-    const orderByXAsc = (center1: ICenterRect, center2: ICenterRect) =>
-      center1.x < center2.x ? [center1, center2] : [center2, center1];
-
-    const orderByYAsc = (center1: ICenterRect, center2: ICenterRect) =>
-      center1.y < center2.y ? [center1, center2] : [center2, center1];
-
-    const [minPointByX, maxPointByX] = orderByXAsc(center1, center2);
-    const [minPointByY, maxPointByY] = orderByYAsc(center1, center2);
-
-    const direction = minPointByY.x > maxPointByY.x ? -1 : +1;
-    const startingX = minPointByY.x + (minPointByY.width / 2) * direction;
-    // const endingX = direction == 1 ? maxPointByX.x : minPointByX.x; // target == 'center'
-    const endingX = direction == 1 ? maxPointByX.x - maxPointByX.width / 2 : minPointByX.x + maxPointByX.width / 2; // target == 'edge'
-    const startingY = placement == 'top' ? minPointByY.y : maxPointByY.y;
-    const endingY = startingY;
-
-    if ((startingX - endingX) * direction > 0) return; // target == 'edge'
-
-    const arrowPoints = [endingX - 7 * direction, endingY - 3, endingX - 7 * direction, endingY + 3, endingX, endingY];
-    // const arrow: number[] = [];
-    const linePoints = [startingX, startingY, endingX, endingY];
-    const points = [...linePoints, ...arrowPoints];
+    const linePoints = l === noline ? [] : [l.sx, l.sy, l.ex, l.ey];
+    const points = [...linePoints];
 
     const solid: number[] = [];
     const dashed = [10, 10];
-    const dash = startingY == selectedNode.y() + selectedNode.height() / 2 ? solid : dashed;
+    const dash = l.sx >= selected.x && l.sx <= selected.endX ? solid : dashed;
 
     line.setAttrs({ points, dash });
     line.show();
@@ -366,13 +409,17 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
   }
 
   shape.on('mouseover dragmove', (e) => {
-    drawHorizontalGuideline(e, redLine1, 'top');
-    drawHorizontalGuideline(e, redLine2, 'bottom');
+    // drawHorizontalGuideline(e, redLine1, 'top');
+    // drawHorizontalGuideline(e, redLine2, 'bottom');
+    // drawVerticalGuideline(e, redLine3, 'left');
+    drawVerticalGuideline(e, redLine4, 'right');
   });
 
   shape.on('mouseout', () => {
     redLine1.hide();
     redLine2.hide();
+    redLine3.hide();
+    redLine4.hide();
     layer.draw();
   });
 }
@@ -391,8 +438,8 @@ function App(): React.ReactElement {
       width: width,
       height: height,
       draggable: true,
-      scaleX: 0.5,
-      scaleY: 0.5,
+      scaleX: 1, // 0.5
+      scaleY: 1, // 0.5
     });
 
     const layer = new Konva.Layer();
