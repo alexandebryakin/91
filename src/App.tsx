@@ -302,6 +302,25 @@ interface IFigure {
   centerX: number;
   centerY: number;
 }
+interface ILineCoords {
+  sx: number;
+  sy: number;
+  ex: number;
+  ey: number;
+}
+type TSector1 = 1;
+type TSector2 = 2;
+type TSector3 = 3;
+type TSector4 = 4;
+type TSector5 = 5;
+type TSector6 = 6;
+type TSector7 = 7;
+type TSector8 = 8;
+type TSector9 = 9;
+type TSector = TSector1 | TSector2 | TSector3 | TSector4 | TSector5 | TSector6 | TSector7 | TSector8 | TSector9;
+type TLineMap = {
+  [key in TSector]: ILineCoords;
+};
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
   const redLine1 = new Konva.Line({
     points: [],
@@ -362,6 +381,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
     return 9;
   };
+  const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
 
   function drawVerticalGuideline(e: KonvaEventObject<MouseEvent>, line: Line, placement: 'left' | 'right') {
     const selectedNode = transformer.nodes()[0];
@@ -407,12 +427,95 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     line.show();
     layer.draw();
   }
+  function drawGuideline(e: KonvaEventObject<MouseEvent>, line: Line, map: TLineMap) {
+    const selectedNode = transformer.nodes()[0];
+
+    const target = buildObject(e.target);
+    const selected = buildObject(selectedNode);
+
+    const sector = defineSector(target, selected);
+    const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
+    const l = map[sector];
+    circleS.setAttrs({ x: l.sx, y: l.sy });
+    circleE.setAttrs({ x: l.ex, y: l.ey });
+
+    const linePoints = l === noline ? [] : [l.sx, l.sy, l.ex, l.ey];
+    const points = [...linePoints];
+
+    const solid: number[] = [];
+    const dashed = [10, 10];
+    const dash = l.sx >= selected.x && l.sx <= selected.endX ? solid : dashed;
+
+    line.setAttrs({ points, dash });
+    line.show();
+    layer.draw();
+  }
+
+  function buildLeftGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
+    return {
+      [1]: { sx: target.endX, sy: target.endY, ex: target.endX, ey: selected.centerY },
+      [2]: noline,
+      [3]: { sx: selected.centerX, sy: target.endY, ex: selected.centerX, ey: selected.y },
+      [4]: noline,
+      [5]: { sx: selected.centerX, sy: target.y, ex: selected.centerX, ey: selected.endY },
+      [6]: noline,
+      [7]: { sx: target.endX, sy: target.y, ex: target.endX, ey: selected.centerY },
+      [8]: noline,
+      [9]: noline,
+    };
+  }
+
+  function buildRightGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
+    return {
+      [1]: { sx: selected.centerX, sy: target.endY, ex: selected.centerX, ey: selected.y },
+      [2]: {
+        sx: target.x + (selected.endX - target.x) / 2,
+        sy: target.endY,
+        ex: target.x + (selected.endX - target.x) / 2,
+        ey: selected.y,
+      },
+      [3]: { sx: target.x, sy: target.endY, ex: target.x, ey: selected.centerY },
+      [4]: noline,
+      [5]: { sx: target.x, sy: target.y, ex: target.x, ey: selected.centerY },
+      [6]: {
+        sx: target.x + (selected.endX - target.x) / 2,
+        sy: target.y,
+        ex: target.x + (selected.endX - target.x) / 2,
+        ey: selected.endY,
+      },
+      [7]: { sx: selected.centerX, sy: target.y, ex: selected.centerX, ey: selected.endY },
+      [8]: noline,
+      [9]: noline,
+    };
+  }
+
+  const notdone = noline;
+  function buildTopGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
+    return {
+      [1]: { sx: target.endX, sy: target.endY, ex: selected.centerX, ey: target.endY },
+      [2]: noline,
+      [3]: { sx: target.x, sy: target.endY, ex: selected.centerX, ey: target.endY },
+      [4]: notdone,
+      [5]: notdone,
+      [6]: notdone,
+      [7]: notdone,
+      [8]: notdone,
+      [9]: notdone,
+    };
+  }
 
   shape.on('mouseover dragmove', (e) => {
+    const selectedNode = transformer.nodes()[0];
+    if (!selectedNode || selectedNode === shape) return;
     // drawHorizontalGuideline(e, redLine1, 'top');
     // drawHorizontalGuideline(e, redLine2, 'bottom');
-    // drawVerticalGuideline(e, redLine3, 'left');
-    drawVerticalGuideline(e, redLine4, 'right');
+    const target = buildObject(e.target);
+    const selected = buildObject(selectedNode);
+    drawGuideline(e, redLine2, buildTopGuidelineMap(target, selected));
+    drawGuideline(e, redLine3, buildLeftGuidelineMap(target, selected));
+    drawGuideline(e, redLine4, buildRightGuidelineMap(target, selected));
+    // drawVerticalLeftGuideline(e, redLine3, 'left');
+    // drawVerticalGuideline(e, redLine4, 'right');
   });
 
   shape.on('mouseout', () => {
