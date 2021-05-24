@@ -448,7 +448,6 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     };
   }
 
-  const notdone = noline;
   function buildTopGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
     const defSecond = () => {
       if (target.centerY < selected.y) return selected.y;
@@ -488,8 +487,8 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
       [5]: { sx: target.x, sy: target.y, ex: selected.centerX, ey: target.y },
       [6]: noline,
       [7]: { sx: target.endX, sy: target.y, ex: selected.centerX, ey: target.y },
-      [8]: notdone,
-      [9]: notdone,
+      [8]: noline,
+      [9]: noline,
     };
   }
 
