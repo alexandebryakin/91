@@ -14,7 +14,8 @@ import PinIcon from './icons/PinIcon';
 import { Shape } from 'konva/types/Shape';
 import TextIcon from './icons/TextIcon';
 import ButtonRemove from './ui/components/ButtonRemove';
-import { Line } from 'konva/types/shapes/Line';
+import { Line, LineConfig } from 'konva/types/shapes/Line';
+import { Label } from 'konva/types/shapes/Label';
 
 interface ISideBar {
   template: ITemplate;
@@ -322,37 +323,33 @@ type TLineMap = {
   [key in TSector]: ILineCoords;
 };
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
-  const redLine1 = new Konva.Line({
-    points: [],
-    stroke: 'red',
-    strokeWidth: 1,
-  });
-  redLine1.hide();
-  layer.add(redLine1);
+  const generateGuideline = (): Line => {
+    const line = new Konva.Line({
+      points: [],
+      stroke: 'red',
+      strokeWidth: 1,
+    });
+    line.hide();
+    layer.add(line);
+    return line;
+  };
+  const redLine1 = generateGuideline();
+  const redLine2 = generateGuideline();
+  const redLine3 = generateGuideline();
+  const redLine4 = generateGuideline();
 
-  const redLine2 = new Konva.Line({
-    points: [],
-    stroke: 'red',
-    strokeWidth: 1,
-  });
-  redLine2.hide();
-  layer.add(redLine2);
-
-  const redLine3 = new Konva.Line({
-    points: [],
-    stroke: 'red',
-    strokeWidth: 1,
-  });
-  redLine3.hide();
-  layer.add(redLine3);
-
-  const redLine4 = new Konva.Line({
-    points: [],
-    stroke: 'red',
-    strokeWidth: 1,
-  });
-  redLine4.hide();
-  layer.add(redLine4);
+  const generateLabel = (): Label => {
+    const label = new Konva.Label({});
+    label.add(new Konva.Tag({ fill: 'red', cornerRadius: 5 }));
+    label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff' }));
+    label.hide();
+    layer.add(label);
+    return label;
+  };
+  const label1 = generateLabel();
+  const label2 = generateLabel();
+  const label3 = generateLabel();
+  const label4 = generateLabel();
 
   const buildObject = (node: Node): IFigure => {
     return {
@@ -379,7 +376,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
   };
   const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
 
-  function drawGuideline(e: KonvaEventObject<MouseEvent>, line: Line, map: TLineMap) {
+  function drawGuideline(e: KonvaEventObject<MouseEvent>, line: Line, label: Label, map: TLineMap) {
     const selectedNode = transformer.nodes()[0];
 
     const target = buildObject(e.target);
@@ -397,8 +394,23 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     const solid: number[] = [];
     const dashed = [10, 10];
 
-    const dash =
-      l.ex >= selected.x && l.ex <= selected.endX && l.ey >= selected.y && l.ey <= selected.endY ? solid : dashed;
+    const lineSnapsToSelected =
+      l.ex >= selected.x && l.ex <= selected.endX && l.ey >= selected.y && l.ey <= selected.endY;
+    const dash = lineSnapsToSelected ? solid : dashed;
+
+    if (lineSnapsToSelected) {
+      const isVertical = l.sx == l.ex;
+      const labelText = Math.round(Math.abs(isVertical ? l.ey - l.sy : l.ex - l.sx));
+      label.getText().setAttrs({ text: labelText });
+      const halfTextWidth = label.getText().width() / 2;
+      const halfTextHeight = label.getText().height() / 2;
+      const lineCenters = {
+        x: Math.min(l.sx, l.ex) + Math.abs(l.sx - l.ex) / 2,
+        y: Math.min(l.sy, l.ey) + Math.abs(l.sy - l.ey) / 2,
+      };
+      label.setAttrs({ x: lineCenters.x - halfTextWidth, y: lineCenters.y - halfTextHeight });
+      label.show();
+    } else label.hide();
 
     line.setAttrs({ points, dash });
     line.show();
@@ -497,10 +509,10 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     if (!selectedNode || selectedNode === shape) return;
     const target = buildObject(e.target);
     const selected = buildObject(selectedNode);
-    drawGuideline(e, redLine1, buildBottomGuidelineMap(target, selected));
-    drawGuideline(e, redLine2, buildTopGuidelineMap(target, selected));
-    drawGuideline(e, redLine3, buildLeftGuidelineMap(target, selected));
-    drawGuideline(e, redLine4, buildRightGuidelineMap(target, selected));
+    drawGuideline(e, redLine1, label1, buildBottomGuidelineMap(target, selected));
+    drawGuideline(e, redLine2, label2, buildTopGuidelineMap(target, selected));
+    drawGuideline(e, redLine3, label3, buildLeftGuidelineMap(target, selected));
+    drawGuideline(e, redLine4, label4, buildRightGuidelineMap(target, selected));
   });
 
   shape.on('mouseout', () => {
@@ -508,6 +520,10 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     redLine2.hide();
     redLine3.hide();
     redLine4.hide();
+    label1.hide();
+    label2.hide();
+    label3.hide();
+    label4.hide();
     layer.draw();
   });
 }
@@ -675,6 +691,7 @@ function App(): React.ReactElement {
     makeTextTransformable(text);
     layer && transformer && stage && makeTextEditible(text, transformer, stage, layer);
     layer && transformer && makeHoverable(text, layer, transformer);
+    layer && transformer && makeGuidelineable(text, transformer, layer);
 
     const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
       const currentPositionConsideringStageScale = (): IPosition => {
