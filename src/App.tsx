@@ -332,7 +332,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
   const redLine2 = new Konva.Line({
     points: [],
-    stroke: 'pink',
+    stroke: 'red',
     strokeWidth: 1,
   });
   redLine2.hide();
@@ -340,7 +340,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
   const redLine3 = new Konva.Line({
     points: [],
-    stroke: 'blue',
+    stroke: 'red',
     strokeWidth: 1,
   });
   redLine3.hide();
@@ -348,15 +348,11 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
   const redLine4 = new Konva.Line({
     points: [],
-    stroke: 'green',
+    stroke: 'red',
     strokeWidth: 1,
   });
   redLine4.hide();
   layer.add(redLine4);
-  const circleS = new Konva.Circle({ radius: 5, fill: 'red' });
-  const circleE = new Konva.Circle({ radius: 3, fill: 'blue' });
-  layer.add(circleS);
-  layer.add(circleE);
 
   const buildObject = (node: Node): IFigure => {
     return {
@@ -392,18 +388,17 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     const sector = defineSector(target, selected);
     const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
     const l = map[sector];
-    circleS.setAttrs({ x: l.sx, y: l.sy });
-    circleE.setAttrs({ x: l.ex, y: l.ey });
 
-    const linePoints = l === noline ? [] : [l.sx, l.sy, l.ex, l.ey];
+    if (l === noline) return;
+
+    const linePoints = [l.sx, l.sy, l.ex, l.ey];
     const points = [...linePoints];
 
     const solid: number[] = [];
     const dashed = [10, 10];
-    // const dash = l.sx >= selected.x && l.sx <= selected.endX ? solid : dashed;
-    const allCoordinates = Object.values(selected); //.concat(Object.values(target));
-    const ending = [l.ex, l.ey];
-    const dash = ending.some((coordinate) => allCoordinates.includes(coordinate)) ? solid : dashed;
+
+    const dash =
+      l.ex >= selected.x && l.ex <= selected.endX && l.ey >= selected.y && l.ey <= selected.endY ? solid : dashed;
 
     line.setAttrs({ points, dash });
     line.show();
