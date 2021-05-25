@@ -274,7 +274,7 @@ function makeTextTransformable(text: Text) {
 }
 
 const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => {
-  const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1 });
+  const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1, name: helpernodeHover });
 
   layer?.add(hoverRect);
   shape.on('mouseover dragmove', (e) => {
@@ -289,7 +289,7 @@ const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => 
     hoverRect.show();
     layer?.draw();
   });
-  shape.on('mouseout', () => {
+  shape.on('mouseout dragend', () => {
     hoverRect.hide();
     layer?.draw();
   });
@@ -322,12 +322,14 @@ type TSector = TSector1 | TSector2 | TSector3 | TSector4 | TSector5 | TSector6 |
 type TLineMap = {
   [key in TSector]: ILineCoords;
 };
+const helpernode = 'helpernode';
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
   const generateGuideline = (): Line => {
     const line = new Konva.Line({
       points: [],
       stroke: 'red',
       strokeWidth: 1,
+      name: helpernode,
     });
     line.hide();
     layer.add(line);
@@ -339,9 +341,9 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
   const redLine4 = generateGuideline();
 
   const generateLabel = (): Label => {
-    const label = new Konva.Label({});
-    label.add(new Konva.Tag({ fill: 'red', cornerRadius: 5 }));
-    label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff' }));
+    const label = new Konva.Label({ name: helpernode });
+    label.add(new Konva.Tag({ fill: 'red', cornerRadius: 5, name: helpernode }));
+    label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: helpernode }));
     label.hide();
     layer.add(label);
     return label;
@@ -527,6 +529,107 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     layer.draw();
   });
 }
+const helpernodeHover = 'helpernode-hover';
+const helpernodes = [helpernode, helpernodeHover];
+// const isHelpernode = (node: Node) => helpernodes.includes(node.name());
+const isNotHelpernode = (node: Node) => !helpernodes.includes(node.name());
+
+interface ISnapCoords {
+  sx: number;
+  sy: number;
+  ex: number;
+  ey: number;
+}
+function makeSnapable(shape: Shape, layer: Layer) {
+  const buildSnapline = () => {
+    const snapline = new Konva.Line({
+      points: [],
+      stroke: 'blue',
+      dash: [10, 10],
+      strokeWidth: 1,
+      name: helpernode,
+    });
+
+    snapline.hide();
+    layer.add(snapline);
+    return snapline;
+  };
+  const snaplineVertical = buildSnapline();
+  const snaplineHorizontal = buildSnapline();
+
+  shape.on('dragmove', (e: KonvaEventObject<MouseEvent>) => {
+    if (!e.evt.shiftKey) return snaplineVertical.hide();
+
+    const nodes = layer.children
+      .toArray()
+      .filter((n) => n.visible())
+      .filter((n) => n !== shape)
+      .filter(isNotHelpernode);
+
+    const guidesX = nodes.map((node) => [node.x(), node.x() + node.width()]).flat();
+    const guidesY = nodes.map((node) => [node.y(), node.y() + node.height()]).flat();
+
+    const OFFSET = 15;
+
+    const nearestXStart = (x: number) => Math.abs(shape.x() - x) < OFFSET;
+    const nearestXEnd = (x: number) => Math.abs(shape.x() + shape.width() - x) < OFFSET;
+    const nearestYStart = (y: number) => Math.abs(shape.y() - y) < OFFSET;
+    const nearestYEnd = (y: number) => Math.abs(shape.y() + shape.height() - y) < OFFSET;
+    const guides: ISnapCoords = {
+      sx: Math.min(...guidesX.filter(nearestXStart)),
+      ex: Math.min(...guidesX.filter(nearestXEnd)),
+      sy: Math.min(...guidesY.filter(nearestYStart)),
+      ey: Math.min(...guidesY.filter(nearestYEnd)),
+    };
+
+    const diffs: ISnapCoords = {
+      sx: Math.abs(guides.sx - shape.x()),
+      ex: Math.abs(guides.ex - shape.x() + shape.width()),
+      sy: Math.abs(guides.sy - shape.y()),
+      ey: Math.abs(guides.ey - shape.y() + shape.height()),
+    };
+
+    const getNearestX = (guides: ISnapCoords, diffs: ISnapCoords) => {
+      if (isNaN(diffs.sx) && isNaN(diffs.ex)) return NaN;
+      if (isNaN(diffs.sx)) return guides.ex - shape.width();
+      if (isNaN(diffs.ex)) return guides.sx;
+      return diffs.sx < diffs.ex ? guides.sx : guides.ex - shape.width();
+    };
+    const getNearestY = (guides: ISnapCoords, diffs: ISnapCoords) => {
+      if (isNaN(diffs.sy) && isNaN(diffs.ey)) return NaN;
+      if (isNaN(diffs.sy)) return guides.ey - shape.height();
+      if (isNaN(diffs.ey)) return guides.sy;
+      return diffs.sy < diffs.ey ? guides.sy : guides.ey - shape.height();
+    };
+
+    const x = getNearestX(guides, diffs);
+    const y = getNearestY(guides, diffs);
+
+    if (!isNaN(x) && isFinite(x)) {
+      const isSnappingToStart = x == guides.sx;
+      const snaplineX = Math.round(isSnappingToStart ? x : guides.ex);
+      snaplineVertical.setAttrs({ points: [snaplineX, -6000, snaplineX, +6000] });
+      snaplineVertical.show();
+    } else snaplineVertical.hide();
+
+    if (!isNaN(y) && isFinite(y)) {
+      const isSnappingToStart = y == guides.sy;
+      const snaplineY = Math.round(isSnappingToStart ? y : guides.ey);
+      snaplineHorizontal.setAttrs({ points: [-6000, snaplineY, +6000, snaplineY] });
+      snaplineHorizontal.show();
+    } else snaplineHorizontal.hide();
+
+    const coords = { x: isFinite(x) ? x : shape.x(), y: isFinite(y) ? y : shape.y() };
+    const hoverRect = layer.findOne((node: Node) => node.name() == helpernodeHover);
+    hoverRect?.setAttrs(coords);
+    shape.setAttrs(coords);
+  });
+
+  shape.on('dragend', () => {
+    snaplineVertical.hide();
+    snaplineHorizontal.hide();
+  });
+}
 
 function App(): React.ReactElement {
   const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
@@ -551,16 +654,13 @@ function App(): React.ReactElement {
 
     const tr = new Konva.Transformer({
       nodes: [],
-      padding: 5,
-
-      // enable only side anchors
       enabledAnchors: ['middle-left', 'middle-right'],
-      // limit transformer size
       boundBoxFunc: (oldBox, newBox) => {
         const MIN_WIDTH = 20;
 
         return newBox.width < MIN_WIDTH ? oldBox : newBox;
       },
+      name: helpernode,
     });
     function loadTemplate(template: ITemplate, transformer: Transformer) {
       const templateRect = new Konva.Rect({
@@ -592,6 +692,7 @@ function App(): React.ReactElement {
             makeTextEditible(text, transformer, stage, layer);
             makeHoverable(text, layer, transformer);
             makeGuidelineable(text, transformer, layer);
+            makeSnapable(text, layer);
 
             return text;
           }
