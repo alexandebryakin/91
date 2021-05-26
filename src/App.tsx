@@ -16,6 +16,7 @@ import TextIcon from './icons/TextIcon';
 import ButtonRemove from './ui/components/ButtonRemove';
 import { Line, LineConfig } from 'konva/types/shapes/Line';
 import { Label } from 'konva/types/shapes/Label';
+import { Rect } from 'konva/types/shapes/Rect';
 
 interface ISideBar {
   template: ITemplate;
@@ -123,6 +124,13 @@ interface IPosition {
   x: number;
   y: number;
 }
+
+const helpernode = 'helpernode';
+const helpernodeHover = 'helpernode-hover';
+const helpernodeSnappedRect = 'helpernode-snapped-rect';
+const helpernodes = [helpernode, helpernodeHover, helpernodeSnappedRect];
+// const isHelpernode = (node: Node) => helpernodes.includes(node.name());
+const isNotHelpernode = (node: Node) => !helpernodes.includes(node.name());
 
 function makeTextEditible(text: Text, transformer: Transformer, stage: Stage, layer: Layer) {
   text.on('dblclick dbltap', () => {
@@ -273,9 +281,8 @@ function makeTextTransformable(text: Text) {
   });
 }
 
+const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1, name: helpernodeHover });
 const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => {
-  const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1, name: helpernodeHover });
-
   layer?.add(hoverRect);
   shape.on('mouseover dragmove', (e) => {
     const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
@@ -322,7 +329,7 @@ type TSector = TSector1 | TSector2 | TSector3 | TSector4 | TSector5 | TSector6 |
 type TLineMap = {
   [key in TSector]: ILineCoords;
 };
-const helpernode = 'helpernode';
+
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
   const generateGuideline = (): Line => {
     const line = new Konva.Line({
@@ -529,10 +536,6 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     layer.draw();
   });
 }
-const helpernodeHover = 'helpernode-hover';
-const helpernodes = [helpernode, helpernodeHover];
-// const isHelpernode = (node: Node) => helpernodes.includes(node.name());
-const isNotHelpernode = (node: Node) => !helpernodes.includes(node.name());
 
 interface ISnapCoords {
   sx: number;
@@ -605,20 +608,27 @@ function makeSnapable(shape: Shape, layer: Layer) {
     const x = getNearestX(guides, diffs);
     const y = getNearestY(guides, diffs);
 
+    const isSnappingToStartX = x == guides.sx;
+    const snaplineX = Math.round(isSnappingToStartX ? x : guides.ex);
     if (!isNaN(x) && isFinite(x)) {
-      const isSnappingToStart = x == guides.sx;
-      const snaplineX = Math.round(isSnappingToStart ? x : guides.ex);
       snaplineVertical.setAttrs({ points: [snaplineX, -6000, snaplineX, +6000] });
       snaplineVertical.show();
-    } else snaplineVertical.hide();
+    } else {
+      snaplineVertical.hide();
+      destorySnapNodes(layer);
+    }
 
+    const isSnappingToStartY = y == guides.sy;
+    const snaplineY = Math.round(isSnappingToStartY ? y : guides.ey);
     if (!isNaN(y) && isFinite(y)) {
-      const isSnappingToStart = y == guides.sy;
-      const snaplineY = Math.round(isSnappingToStart ? y : guides.ey);
       snaplineHorizontal.setAttrs({ points: [-6000, snaplineY, +6000, snaplineY] });
       snaplineHorizontal.show();
-    } else snaplineHorizontal.hide();
+    } else {
+      snaplineHorizontal.hide();
+      destorySnapNodes(layer);
+    }
 
+    higlightSnappedNode({ x: snaplineX, y: snaplineY }, layer, shape);
     const coords = { x: isFinite(x) ? x : shape.x(), y: isFinite(y) ? y : shape.y() };
     const hoverRect = layer.findOne((node: Node) => node.name() == helpernodeHover);
     hoverRect?.setAttrs(coords);
@@ -628,7 +638,53 @@ function makeSnapable(shape: Shape, layer: Layer) {
   shape.on('dragend', () => {
     snaplineVertical.hide();
     snaplineHorizontal.hide();
+    destorySnapNodes(layer);
   });
+}
+
+function destorySnapNodes(layer: Layer) {
+  layer.find((node: Node) => node.name() == helpernodeSnappedRect).each((n: Node) => n.destroy());
+}
+function higlightSnappedNode(snaplineCoords: IPosition, layer: Layer, shape: Shape) {
+  const { x, y } = snaplineCoords;
+  const snappingNodes = layer
+    .find(
+      (node: Node) =>
+        Math.round(node.x()) == x ||
+        Math.round(node.x() + node.width()) == x ||
+        Math.round(node.y()) == y ||
+        Math.round(node.y() + node.height()) == y,
+    )
+    .toArray()
+    .filter((node: Node) => node !== shape)
+    .filter(isNotHelpernode);
+
+  // console.log('>>>>>\n');
+  // const f = (shape: Node) => [shape.x(), shape.y(), shape.x() + shape.width(), shape.y() + shape.height()];
+  // console.log('snap', snaplineCoords);
+  // console.log('shape', f(shape));
+  // layer
+  //   .find(isNotHelpernode)
+  //   .toArray()
+  //   .filter((node: Node) => node !== shape)
+  //   .forEach((n, i) => console.log(`snap ${i}`, f(n)));
+  // console.log('<<<<<');
+  // destorySnapNodes(layer);
+
+  const buildSnappingRect = (node: Node): Rect => {
+    return new Konva.Rect({
+      x: node.x(),
+      y: node.y(),
+      width: node.width(),
+      height: node.height(),
+      stroke: 'blue',
+      strokeWidth: 1,
+      name: helpernodeSnappedRect,
+    });
+  };
+
+  const snappingRects = snappingNodes.map(buildSnappingRect);
+  snappingRects.forEach((rect: Rect) => layer.add(rect));
 }
 
 function App(): React.ReactElement {
@@ -786,6 +842,7 @@ function App(): React.ReactElement {
       text: 'New text ...',
       draggable: true,
     });
+    layer?.add(text);
     const { textWidth, textHeight } = text;
     setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
 
@@ -793,6 +850,7 @@ function App(): React.ReactElement {
     layer && transformer && stage && makeTextEditible(text, transformer, stage, layer);
     layer && transformer && makeHoverable(text, layer, transformer);
     layer && transformer && makeGuidelineable(text, transformer, layer);
+    layer && makeSnapable(text, layer);
 
     const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
       const currentPositionConsideringStageScale = (): IPosition => {
@@ -812,7 +870,6 @@ function App(): React.ReactElement {
       const positionWithStageScale = currentPositionConsideringStageScale();
       const { x, y } = centerCursorOnElement(positionWithStageScale);
       text.setAttrs({ x, y });
-      layer?.add(text);
       layer?.draw();
       setCoords({ x, y });
     };
