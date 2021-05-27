@@ -47,6 +47,12 @@ function SideBar(props: ISideBar): React.ReactElement {
     </div>
   );
 }
+const colors = {
+  ['--border-color']: '#dadde1',
+  ['--color-bg-tool']: '#eef3f7',
+  ['--helpernode']: '#f9690e',
+};
+
 interface ITemplate {
   size: ISize;
   nodes: INode[];
@@ -281,7 +287,7 @@ function makeTextTransformable(text: Text) {
   });
 }
 
-const hoverRect = new Konva.Rect({ stroke: '#ebc175', strokeWidth: 1, name: helpernodeHover });
+const hoverRect = new Konva.Rect({ stroke: colors['--helpernode'], strokeWidth: 1, name: helpernodeHover });
 const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => {
   layer?.add(hoverRect);
   shape.on('mouseover dragmove', (e) => {
@@ -334,7 +340,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
   const generateGuideline = (): Line => {
     const line = new Konva.Line({
       points: [],
-      stroke: 'red',
+      stroke: colors['--helpernode'],
       strokeWidth: 1,
       name: helpernode,
     });
@@ -349,7 +355,7 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
   const generateLabel = (): Label => {
     const label = new Konva.Label({ name: helpernode });
-    label.add(new Konva.Tag({ fill: 'red', cornerRadius: 5, name: helpernode }));
+    label.add(new Konva.Tag({ fill: colors['--helpernode'], cornerRadius: 5, name: helpernode }));
     label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: helpernode }));
     label.hide();
     layer.add(label);
@@ -718,6 +724,11 @@ function App(): React.ReactElement {
       nodes: [],
       rotateEnabled: false,
       enabledAnchors: ['middle-left', 'middle-right'],
+      anchorStroke: colors['--border-color'],
+      anchorFill: colors['--color-bg-tool'],
+      anchorSize: 7,
+      borderDash: [5, 5],
+      borderStroke: '#727585',
       boundBoxFunc: (oldBox, newBox) => {
         const MIN_WIDTH = 20;
 
@@ -758,6 +769,7 @@ function App(): React.ReactElement {
             makeHoverable(text, layer, transformer);
             makeGuidelineable(text, transformer, layer);
             makeSnapable(text, layer);
+            text.on('click dragmove', setCoordsAndSizeAttrs);
 
             return text;
           }
@@ -776,12 +788,8 @@ function App(): React.ReactElement {
     }
     loadTemplate(loadedTemplate, tr);
 
-    tr.on('transform', setCoordsAndSizeAttrs);
+    tr.on('transform dragmove', setCoordsAndSizeAttrs);
 
-    tr.on('dragmove', function (e) {
-      const { x, y } = e.target.attrs;
-      setCoords(() => ({ x: Math.round(x), y: Math.round(y) }));
-    });
     layer.add(tr);
 
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
