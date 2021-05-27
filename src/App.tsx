@@ -14,7 +14,7 @@ import PinIcon from './icons/PinIcon';
 import { Shape } from 'konva/types/Shape';
 import TextIcon from './icons/TextIcon';
 import ButtonRemove from './ui/components/ButtonRemove';
-import { Line, LineConfig } from 'konva/types/shapes/Line';
+import { Line } from 'konva/types/shapes/Line';
 import { Label } from 'konva/types/shapes/Label';
 import { Rect } from 'konva/types/shapes/Rect';
 
@@ -51,10 +51,10 @@ interface ITemplate {
   size: ISize;
   nodes: INode[];
 }
-const defaultTemplate: ITemplate = {
-  size: { width: 720, height: 1080 } as ISize,
-  nodes: [],
-};
+// const defaultTemplate: ITemplate = {
+//   size: { width: 720, height: 1080 } as ISize,
+//   nodes: [],
+// };
 const loadedTemplate: ITemplate = {
   size: { width: 720, height: 1080 } as ISize,
   nodes: [
@@ -692,6 +692,12 @@ function App(): React.ReactElement {
 
   const konvaStageRef = React.useRef<HTMLDivElement>(null);
   const konvaStageContainer = 'konva-stage-container';
+
+  const setCoordsAndSizeAttrs = (e: KonvaEventObject<MouseEvent>) => {
+    setCoords({ x: e.target.x(), y: e.target.y() });
+    setSize({ width: e.target.width(), height: e.target.height() });
+  };
+
   React.useEffect(() => {
     const width = konvaStageRef.current?.offsetWidth;
     const height = konvaStageRef.current?.offsetHeight;
@@ -710,6 +716,7 @@ function App(): React.ReactElement {
 
     const tr = new Konva.Transformer({
       nodes: [],
+      rotateEnabled: false,
       enabledAnchors: ['middle-left', 'middle-right'],
       boundBoxFunc: (oldBox, newBox) => {
         const MIN_WIDTH = 20;
@@ -718,6 +725,8 @@ function App(): React.ReactElement {
       },
       name: helpernode,
     });
+
+    stage.on('click', setCoordsAndSizeAttrs);
     function loadTemplate(template: ITemplate, transformer: Transformer) {
       const templateRect = new Konva.Rect({
         x: 20,
@@ -767,14 +776,7 @@ function App(): React.ReactElement {
     }
     loadTemplate(loadedTemplate, tr);
 
-    tr.on('transform', () => {
-      setSize(() => {
-        return {
-          width: Math.round(tr.width()),
-          height: Math.round(tr.height()),
-        };
-      });
-    });
+    tr.on('transform', setCoordsAndSizeAttrs);
 
     tr.on('dragmove', function (e) {
       const { x, y } = e.target.attrs;
@@ -871,7 +873,7 @@ function App(): React.ReactElement {
       const { x, y } = centerCursorOnElement(positionWithStageScale);
       text.setAttrs({ x, y });
       layer?.draw();
-      setCoords({ x, y });
+      setCoordsAndSizeAttrs(e);
     };
 
     const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
@@ -889,10 +891,12 @@ function App(): React.ReactElement {
     };
 
     const cleanClickOnTextAfterPlacement = () => {
-      text.off('click', placeText);
+      text.off('click.text-placement', placeText);
     };
     const placeText = () => {
       cleanup();
+      text.on('dragmove', setCoordsAndSizeAttrs);
+
       setTemplate((t) => {
         const node: INode = buildTextNode(text);
         t.nodes = [...t.nodes, node];
@@ -902,7 +906,7 @@ function App(): React.ReactElement {
 
     stage?.on('mousemove', handleMouseMove);
     stage?.on('contextmenu', handleRightMouseClick);
-    text?.on('click', placeText);
+    text?.on('click.text-placement', placeText);
 
     stage?.batchDraw();
   };
