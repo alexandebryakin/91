@@ -1,4 +1,5 @@
 import Konva from 'konva';
+import { v4 as uuid } from 'uuid';
 import { Layer } from 'konva/types/Layer';
 import { Transformer } from 'konva/types/shapes/Transformer';
 import { Text } from 'konva/types/shapes/Text';
@@ -17,6 +18,8 @@ import ButtonRemove from './ui/components/ButtonRemove';
 import { Line } from 'konva/types/shapes/Line';
 import { Label } from 'konva/types/shapes/Label';
 import { Rect } from 'konva/types/shapes/Rect';
+import UndoIcon from './icons/UndoIcon';
+import RedoIcon from './icons/RedoIcon';
 
 interface ISideBar {
   template: ITemplate;
@@ -692,6 +695,14 @@ function higlightSnappedNode(snaplineCoords: IPosition, layer: Layer, shape: Sha
   const snappingRects = snappingNodes.map(buildSnappingRect);
   snappingRects.forEach((rect: Rect) => layer.add(rect));
 }
+enum ETemplateNodeTypes {
+  TEXT = 'TEXT',
+  TEMPLATE_RECT = 'TEMPLATE_RECT',
+}
+const genTemplateNodeName = (type: ETemplateNodeTypes) => `template-node ${type}`;
+
+const indestructibleNodeNames = [ETemplateNodeTypes.TEMPLATE_RECT];
+const destructibleNodes = (node: Node) => !indestructibleNodeNames.some((n) => node.name().includes(n));
 
 function App(): React.ReactElement {
   const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
@@ -745,6 +756,8 @@ function App(): React.ReactElement {
         fill: '#fff',
         width: template.size.width,
         height: template.size.height,
+        name: genTemplateNodeName(ETemplateNodeTypes.TEMPLATE_RECT),
+        guid: uuid(),
       });
       layer.add(templateRect);
       layer.draw();
@@ -762,6 +775,8 @@ function App(): React.ReactElement {
               fontSize: node.meta.fontSize,
               text: node.meta.content,
               draggable: node.draggable,
+              name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
+              guid: uuid(),
             });
 
             makeTextTransformable(text);
@@ -851,6 +866,8 @@ function App(): React.ReactElement {
       fontSize: 20,
       text: 'New text ...',
       draggable: true,
+      name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
+      guid: uuid(),
     });
     layer?.add(text);
     const { textWidth, textHeight } = text;
@@ -941,6 +958,18 @@ function App(): React.ReactElement {
   // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage);
   // console.log('template', template);
 
+  function handleRemoveNodes() {
+    transformer
+      ?.nodes()
+      .filter(destructibleNodes)
+      .filter(isNotHelpernode)
+      .forEach((node: Node) => node.destroy());
+    // transformer?.hide();
+    transformer?.nodes([]);
+
+    layer?.batchDraw();
+  }
+
   return (
     <>
       <NavBar />
@@ -955,9 +984,21 @@ function App(): React.ReactElement {
 
           <div className="toolbar">
             <div className="toolbar__group">
+              <div className="tool">
+                <UndoIcon />
+              </div>
+
+              <div className="tool">
+                <RedoIcon />
+              </div>
+            </div>
+
+            <div className="separator" />
+
+            <div className="toolbar__group">
               <div className="tool">A</div>
               <div className="tool">B</div>
-              <div className="tool">
+              <div className="tool" onClick={handleRemoveNodes}>
                 <ButtonRemove />
               </div>
             </div>
