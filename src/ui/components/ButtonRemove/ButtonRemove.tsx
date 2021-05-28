@@ -1,35 +1,24 @@
 import React from 'react';
 import './ButtonRemove.scss';
 
-interface IButtonRemove {
-  text: string;
-}
-
 // taken from `https://codepen.io/aaroniker/pen/abOXPvN`
+interface ButtonRemoveProps {
+  disabled?: boolean;
+}
+function ButtonRemove(props: ButtonRemoveProps): React.ReactElement {
+  const { disabled } = props;
 
-function ButtonRemove(props: IButtonRemove): React.ReactElement {
-  const { text } = props;
-
-  const buttonCN = 'button-remove';
-  const textCN = 'text';
+  const cx = 'button-remove';
 
   React.useEffect(() => {
-    document.querySelectorAll(`.${buttonCN}`).forEach((button) => {
-      const text = button.querySelector(`.${textCN}`);
-      if (text?.innerHTML) {
-        const symbols = (text.textContent || '')
-          .trim()
-          .split('')
-          .map((c) => (c == '' ? '&nbps;' : c));
-        text.innerHTML = '<span>' + symbols.join('</span><span>') + '</span>';
-      }
+    document.querySelectorAll(`.${cx}`).forEach((button) => {
       button.addEventListener('click', (e) => {
-        if (!button.classList.contains('delete')) {
-          button.classList.add('delete');
-
-          setTimeout(() => button.classList.remove('delete'), 2400);
-        }
+        if (disabled === true) return;
         e.preventDefault();
+        if (button.classList.contains('delete')) return;
+
+        button.classList.add('delete');
+        setTimeout(() => button.classList.remove('delete'), 400);
       });
     });
   }, []);
@@ -46,7 +35,6 @@ function ButtonRemove(props: IButtonRemove): React.ReactElement {
             <use xlinkHref="#bottom" />
           </svg>
         </div>
-        <div className="text">{text}</div>
       </button>
 
       <svg xmlns="http://www.w3.org/2000/svg" style={{ display: 'none' }}>

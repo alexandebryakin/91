@@ -957,6 +957,9 @@ function App(): React.ReactElement {
             <div className="toolbar__group">
               <div className="tool">A</div>
               <div className="tool">B</div>
+              <div className="tool">
+                <ButtonRemove />
+              </div>
             </div>
 
             <div className="separator" />
@@ -989,8 +992,6 @@ function App(): React.ReactElement {
 
                 <LabeledInput label="H" value={(size.height || '').toString()} />
               </div>
-
-              <ButtonRemove text={'abra kada'} />
             </div>
           </div>
         </div>
