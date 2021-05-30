@@ -20,6 +20,8 @@ import { Label } from 'konva/types/shapes/Label';
 import { Rect } from 'konva/types/shapes/Rect';
 import UndoIcon from './icons/UndoIcon';
 import RedoIcon from './icons/RedoIcon';
+import ImageIcon from './icons/ImageIcon';
+import TextAddIcon from './icons/TextAddIcon';
 
 interface ISideBar {
   template: ITemplate;
@@ -37,11 +39,10 @@ function SideBar(props: ISideBar): React.ReactElement {
             const { meta } = node;
 
             return (
-              <div key={idx}>
-                <span>
-                  <TextIcon />
-                </span>
-                {meta.type == 'text' ? meta.content : meta.type}
+              <div key={idx} className="document-structure__row">
+                <TextIcon className="document-structure__row-icon" />
+
+                <span>{meta.type == 'text' ? meta.content : meta.type}</span>
               </div>
             );
           })}
@@ -996,8 +997,6 @@ function App(): React.ReactElement {
             <div className="separator" />
 
             <div className="toolbar__group">
-              <div className="tool">A</div>
-              <div className="tool">B</div>
               <div className="tool" onClick={handleRemoveNodes}>
                 <ButtonRemove />
               </div>
@@ -1006,8 +1005,12 @@ function App(): React.ReactElement {
             <div className="separator" />
 
             <div className="toolbar__group">
+              <div className="tool">
+                <ImageIcon />
+              </div>
+
               <div className={`tool ${currentlyAddingTextNode ? 'tool--active' : ''}`} onClick={onClickTextTool2}>
-                T
+                <TextAddIcon />
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 function UndoIcon(): React.ReactElement {
   return (
-    <div style={{ width: '18px', height: '18px', transform: 'rotate(90deg) scaleX(-1)' }}>
+    <div style={{ width: '14px', height: '14px', transform: 'rotate(90deg) scaleX(-1)' }}>
       <svg version="1.1" x="0px" y="0px" viewBox="0 0 423.754 423.754">
         <path
           d="M354.24,47.4l39.879-39.879H272.196v121.924l60.801-60.801c56,50.066,77.251,132.004,46.918,205.235

@@ -159,3 +159,15 @@ html {
     fill: $--color_icon--active;
   }
 }
+
+.document-structure {
+  &__row {
+    display: flex;
+    align-items: center;
+    padding: 5px;
+  }
+
+  &__row-icon {
+    margin-right: 10px;
+  }
+}
