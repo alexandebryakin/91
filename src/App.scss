@@ -125,7 +125,6 @@ html {
   // flex-grow: 1;
 
   .tool {
-    $--color-bg-tool: #eef3f7;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -134,10 +133,8 @@ html {
     height: 40px;
 
     border-radius: $--border-radius;
-    &:hover {
-      background-color: $--color-bg-tool;
-    }
-    transition: background-color 0.21s ease-in-out;
+
+    @include make-hoverable;
 
     margin-top: calc(#{$--toolbar-padding}/ 2);
     margin-bottom: calc(#{$--toolbar-padding}/ 2);
@@ -145,7 +142,7 @@ html {
     user-select: none;
 
     &--active {
-      background-color: $--color-bg-tool;
+      background-color: $--color-bg-hovered;
       border: 1px solid $--border-color;
     }
   }
@@ -165,6 +162,13 @@ html {
     display: flex;
     align-items: center;
     padding: 5px;
+    cursor: pointer;
+
+    @include make-hoverable;
+
+    &--active {
+      background-color: $--color-bg-hovered;
+    }
   }
 
   &__row-icon {

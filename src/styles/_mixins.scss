@@ -5,3 +5,10 @@
 @mixin height-without-navbar {
   height: calc(100vh - #{$--navbar-height});
 }
+
+@mixin make-hoverable($color: $--color-bg-hovered) {
+  &:hover {
+    background-color: $color;
+  }
+  transition: background-color 0.21s ease-in-out;
+}

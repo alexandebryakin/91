@@ -25,9 +25,12 @@ import TextAddIcon from './icons/TextAddIcon';
 
 interface ISideBar {
   template: ITemplate;
+  onRowClick: (node: INode) => void;
+  onMouseOverRow: (node: INode) => void;
+  onMouseLeaveRow: (node: INode) => void;
 }
 function SideBar(props: ISideBar): React.ReactElement {
-  const { template } = props;
+  const { template, onRowClick, onMouseOverRow, onMouseLeaveRow } = props;
 
   return (
     <div className="sidebar__container">
@@ -39,7 +42,13 @@ function SideBar(props: ISideBar): React.ReactElement {
             const { meta } = node;
 
             return (
-              <div key={idx} className="document-structure__row">
+              <div
+                key={idx}
+                className="document-structure__row"
+                onClick={() => onRowClick(node)}
+                onMouseOver={() => onMouseOverRow(node)}
+                onMouseLeave={() => onMouseLeaveRow(node)}
+              >
                 <TextIcon className="document-structure__row-icon" />
 
                 <span>{meta.type == 'text' ? meta.content : meta.type}</span>
@@ -50,6 +59,10 @@ function SideBar(props: ISideBar): React.ReactElement {
       </div>
     </div>
   );
+}
+function selectNode(transformer: Transformer, node: Node) {
+  transformer.nodes([node]);
+  // transformer.setAttrs({enabledAnchors: []})
 }
 const colors = {
   ['--border-color']: '#dadde1',
@@ -69,6 +82,7 @@ const loadedTemplate: ITemplate = {
   size: { width: 720, height: 1080 } as ISize,
   nodes: [
     {
+      guid: 'b2404fc2-b81b-4fb1-8ddd-80e5f19fbde8',
       position: { x: 94, y: 88 },
       size: { width: 100, height: 20 },
       draggable: true,
@@ -80,6 +94,7 @@ const loadedTemplate: ITemplate = {
     } as INodeText,
 
     {
+      guid: 'c20df2a9-7dbb-4095-9baa-9c374c774f56',
       position: { x: 294, y: 288 },
       size: { width: 100, height: 60 },
       draggable: true,
@@ -92,6 +107,7 @@ const loadedTemplate: ITemplate = {
   ],
 };
 interface INode {
+  guid: string;
   position: IPosition;
   size: ISize;
   draggable: boolean;
@@ -111,6 +127,7 @@ interface INodeText extends INode {
 }
 const buildTextNode = (text: Text): INodeText => {
   return {
+    guid: text.id(),
     size: { width: text.textWidth, height: text.textHeight },
     position: { x: text.x(), y: text.y() },
     draggable: text.draggable(),
@@ -138,7 +155,8 @@ interface IPosition {
 const helpernode = 'helpernode';
 const helpernodeHover = 'helpernode-hover';
 const helpernodeSnappedRect = 'helpernode-snapped-rect';
-const helpernodes = [helpernode, helpernodeHover, helpernodeSnappedRect];
+const helpernodeHoveredOnSidear = 'helpernode-hovered-on-sidebar';
+const helpernodes = [helpernode, helpernodeHover, helpernodeSnappedRect, helpernodeHoveredOnSidear];
 // const isHelpernode = (node: Node) => helpernodes.includes(node.name());
 const isNotHelpernode = (node: Node) => !helpernodes.includes(node.name());
 
@@ -758,7 +776,6 @@ function App(): React.ReactElement {
         width: template.size.width,
         height: template.size.height,
         name: genTemplateNodeName(ETemplateNodeTypes.TEMPLATE_RECT),
-        guid: uuid(),
       });
       layer.add(templateRect);
       layer.draw();
@@ -777,7 +794,7 @@ function App(): React.ReactElement {
               text: node.meta.content,
               draggable: node.draggable,
               name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-              guid: uuid(),
+              id: n.guid,
             });
 
             makeTextTransformable(text);
@@ -815,6 +832,14 @@ function App(): React.ReactElement {
     };
     stage.on('click', handleSelection);
 
+    const hoveredNode = new Konva.Rect({
+      stroke: colors['--helpernode'],
+      strokeWidth: 1,
+      name: helpernodeHoveredOnSidear,
+    });
+    hoveredNode.hide();
+    layer.add(hoveredNode);
+
     const handleStageScale = (e: KonvaEventObject<WheelEvent>) => {
       if (!e.evt.ctrlKey) return;
       const scaleBy = 1.02;
@@ -850,7 +875,7 @@ function App(): React.ReactElement {
 
   const [stage, setStage] = React.useState<Stage>();
   const [layer, setLayer] = React.useState<Layer>();
-  const [transformer, setTransformer] = React.useState<Transformer>();
+  const [transformer, setTransformer] = React.useState<Transformer>(new Konva.Transformer({}));
 
   const [coords, setCoords] = React.useState({ x: 0, y: 0 });
   const [size, setSize] = React.useState({ width: 0, height: 0 });
@@ -868,7 +893,7 @@ function App(): React.ReactElement {
       text: 'New text ...',
       draggable: true,
       name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-      guid: uuid(),
+      id: uuid(), // ref: guid
     });
     layer?.add(text);
     const { textWidth, textHeight } = text;
@@ -953,31 +978,69 @@ function App(): React.ReactElement {
 
   const [pinned, setPinned] = React.useState(false);
 
-  Object.assign(window, { __stage: stage, __layer: layer, __tr: transformer });
+  Object.assign(window, { __stage: stage, __layer: layer, __tr: transformer, __uuid: uuid });
 
   // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage?.attrs.x, stage?.attrs.y);
   // console.log('🚀 ~ file: App.tsx ~ line 333 ~ onClickTextTool2 ~ stage', stage);
   // console.log('template', template);
 
   function handleRemoveNodes() {
-    transformer
-      ?.nodes()
-      .filter(destructibleNodes)
-      .filter(isNotHelpernode)
-      .forEach((node: Node) => node.destroy());
+    const nodes = transformer?.nodes().filter(destructibleNodes).filter(isNotHelpernode) || [];
+
+    const destroyTemplateNode = (node: Node) => {
+      const nodes = template.nodes.filter((n) => n.guid != node.id());
+
+      setTemplate((t) => ({ ...t, nodes: [...nodes] }));
+    };
+
+    nodes.forEach(destroyTemplateNode);
+    nodes.forEach((node: Node) => node.destroy());
     // transformer?.hide();
     transformer?.nodes([]);
-
     layer?.batchDraw();
   }
 
+  const findTemplateNodeByGuid = (guid: string): Node | undefined => {
+    return layer?.findOne((node: Node) => node.id() == guid);
+  };
+
+  function getHoveredBySidebarNode(layer?: Layer): Node | undefined {
+    return layer?.findOne((node: Node) => node.name().includes(helpernodeHoveredOnSidear));
+  }
+  function highlightHoveredNode(node: Node) {
+    const hoveredNode = getHoveredBySidebarNode(layer);
+    if (!hoveredNode) return;
+
+    hoveredNode.show();
+    hoveredNode.setAttrs({
+      x: node.x(),
+      y: node.y(),
+      width: node.width(),
+      height: node.height(),
+    });
+    layer?.draw();
+  }
   return (
     <>
       <NavBar />
 
       <div className="main">
         <div className="page">
-          <SideBar template={template} />
+          <SideBar
+            template={template}
+            onRowClick={(node: INode) => {
+              const n = findTemplateNodeByGuid(node.guid);
+              n && transformer.nodes([n]);
+            }}
+            onMouseOverRow={(node: INode) => {
+              const n = findTemplateNodeByGuid(node.guid);
+              n && highlightHoveredNode(n);
+            }}
+            onMouseLeaveRow={() => {
+              const hoveredNode = getHoveredBySidebarNode(layer);
+              hoveredNode?.hide();
+            }}
+          />
 
           <div className="builder-main">
             <div id={konvaStageContainer} ref={konvaStageRef}></div>
