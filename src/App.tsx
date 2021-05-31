@@ -22,6 +22,16 @@ import UndoIcon from './icons/UndoIcon';
 import RedoIcon from './icons/RedoIcon';
 import ImageIcon from './icons/ImageIcon';
 import TextAddIcon from './icons/TextAddIcon';
+import { Image } from 'konva/types/shapes/Image';
+import SaveIcon from './icons/SaveIcon';
+import CopyIcon from './icons/CopyIcon';
+import makeTextEditible from './ui/modifiers/makeTextEditible';
+import { EHelpernode } from './ui/modifiers';
+import makeSnapable from './ui/modifiers/makeSnapable';
+import utils from './ui/modifiers/utils';
+import colors from './ui/colors';
+import makeGuidelineable from './ui/modifiers/makeGuidelineable';
+import makeHoverable from './ui/modifiers/makeHoverable';
 
 interface ISideBar {
   template: ITemplate;
@@ -64,11 +74,6 @@ function selectNode(transformer: Transformer, node: Node) {
   transformer.nodes([node]);
   // transformer.setAttrs({enabledAnchors: []})
 }
-const colors = {
-  ['--border-color']: '#dadde1',
-  ['--color-bg-tool']: '#eef3f7',
-  ['--helpernode']: '#f9690e',
-};
 
 interface ITemplate {
   size: ISize;
@@ -152,149 +157,6 @@ interface IPosition {
   y: number;
 }
 
-const helpernode = 'helpernode';
-const helpernodeHover = 'helpernode-hover';
-const helpernodeSnappedRect = 'helpernode-snapped-rect';
-const helpernodeHoveredOnSidear = 'helpernode-hovered-on-sidebar';
-const helpernodes = [helpernode, helpernodeHover, helpernodeSnappedRect, helpernodeHoveredOnSidear];
-// const isHelpernode = (node: Node) => helpernodes.includes(node.name());
-const isNotHelpernode = (node: Node) => !helpernodes.includes(node.name());
-
-function makeTextEditible(text: Text, transformer: Transformer, stage: Stage, layer: Layer) {
-  text.on('dblclick dbltap', () => {
-    // hide text node and transformer:
-    text.hide();
-    transformer?.hide();
-    layer?.draw();
-
-    // create textarea over canvas with absolute position
-    // first we need to find position for textarea
-    // how to find it?
-
-    // at first lets find position of text node relative to the stage:
-    const textPosition = text.absolutePosition();
-
-    // so position of textarea will be the sum of positions above:
-    const areaPosition = {
-      x: (stage?.container().offsetLeft || 0) + textPosition.x,
-      y: (stage?.container().offsetTop || 0) + textPosition.y,
-    };
-
-    // create textarea and style it
-    const textarea = document.createElement('textarea');
-    document.body.appendChild(textarea);
-
-    // apply many styles to match text on canvas as close as possible
-    // remember that text rendering on canvas and on the textarea can be different
-    // and sometimes it is hard to make it 100% the same. But we will try...
-    textarea.value = text.text();
-    textarea.style.position = 'absolute';
-    textarea.style.top = areaPosition.y + 'px';
-    textarea.style.left = areaPosition.x + 'px';
-    textarea.style.width = text.width() - text.padding() * 2 + 'px';
-    textarea.style.height = text.height() - text.padding() * 2 + 5 + 'px';
-    textarea.style.fontSize = text.fontSize() + 'px';
-    textarea.style.border = '1px solid gray';
-    textarea.style.padding = '0px';
-    textarea.style.margin = '0px';
-    textarea.style.overflow = 'hidden';
-    textarea.style.background = 'none';
-    textarea.style.outline = 'none';
-    textarea.style.resize = 'none';
-    textarea.style.lineHeight = text.lineHeight().toString();
-    textarea.style.fontFamily = text.fontFamily();
-    textarea.style.transformOrigin = 'left top';
-    textarea.style.textAlign = text.align();
-    textarea.style.color = text.fill();
-    const rotation = text.rotation();
-    let transform = '';
-    if (rotation) {
-      transform += 'rotateZ(' + rotation + 'deg)';
-    }
-
-    let px = 0;
-    // also we need to slightly move textarea on firefox
-    // because it jumps a bit
-    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    if (isFirefox) {
-      px += 2 + Math.round(text.fontSize() / 20);
-    }
-    transform += 'translateY(-' + px + 'px)';
-
-    textarea.style.transform = transform;
-
-    // reset height
-    textarea.style.height = 'auto';
-    // after browsers resized it we can set actual value
-    textarea.style.height = textarea.scrollHeight + 3 + 'px';
-
-    textarea.focus();
-
-    function removeTextarea() {
-      textarea.parentNode?.removeChild(textarea);
-      window.removeEventListener('click', handleOutsideClick);
-      text.show();
-      transformer?.show();
-      transformer?.forceUpdate();
-      layer?.draw();
-    }
-
-    function setTextareaWidth(newWidth: number) {
-      if (!newWidth) {
-        // set width for placeholder
-        // newWidth = text.placeholder.length * text.fontSize();
-        // text.value.length
-        newWidth = text.value.length * text.fontSize();
-      }
-      // some extra fixes on different browsers
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-      const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-      if (isSafari || isFirefox) {
-        newWidth = Math.ceil(newWidth);
-      }
-
-      // var isEdge =
-      //   document.documentMode || /Edge/.test(navigator.userAgent);
-      // if (isEdge) {
-      //   newWidth += 1;
-      // }
-      textarea.style.width = newWidth + 'px';
-    }
-
-    textarea.addEventListener('keydown', function (e) {
-      // hide on enter
-      // but don't hide on shift + enter
-      // e.key
-      console.warn('The usage of e.keyCode is deprecated ⛔️ (`makeTextEditable`)');
-      if (e.keyCode === 13 && !e.shiftKey) {
-        text.text(textarea.value);
-        removeTextarea();
-      }
-      // on esc do not set value back to node
-      if (e.keyCode === 27) {
-        removeTextarea();
-      }
-    });
-
-    textarea.addEventListener('keydown', function () {
-      const scale = text.getAbsoluteScale().x;
-      setTextareaWidth(text.width() * scale);
-      textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + text.fontSize() + 'px';
-    });
-
-    function handleOutsideClick(this: Window, e: MouseEvent) {
-      if (e.target !== textarea) {
-        text.text(textarea.value);
-        removeTextarea();
-      }
-    }
-    setTimeout(() => {
-      window.addEventListener('click', handleOutsideClick);
-    });
-  });
-}
-
 function makeTextTransformable(text: Text) {
   const MIN_WIDTH = 20;
   text.on('transform', () => {
@@ -309,411 +171,6 @@ function makeTextTransformable(text: Text) {
   });
 }
 
-const hoverRect = new Konva.Rect({ stroke: colors['--helpernode'], strokeWidth: 1, name: helpernodeHover });
-const makeHoverable = (shape: Shape, layer: Layer, transformer: Transformer) => {
-  layer?.add(hoverRect);
-  shape.on('mouseover dragmove', (e) => {
-    const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
-    if (dontHoverIfElementIsSelected) return;
-
-    const width = shape.width();
-    const height = shape.height();
-    const x = shape.x();
-    const y = shape.y();
-    hoverRect.setAttrs({ x, y, width, height });
-    hoverRect.show();
-    layer?.draw();
-  });
-  shape.on('mouseout dragend', () => {
-    hoverRect.hide();
-    layer?.draw();
-  });
-};
-
-interface IFigure {
-  x: number;
-  y: number;
-  endX: number;
-  endY: number;
-  centerX: number;
-  centerY: number;
-}
-interface ILineCoords {
-  sx: number;
-  sy: number;
-  ex: number;
-  ey: number;
-}
-type TSector1 = 1;
-type TSector2 = 2;
-type TSector3 = 3;
-type TSector4 = 4;
-type TSector5 = 5;
-type TSector6 = 6;
-type TSector7 = 7;
-type TSector8 = 8;
-type TSector9 = 9;
-type TSector = TSector1 | TSector2 | TSector3 | TSector4 | TSector5 | TSector6 | TSector7 | TSector8 | TSector9;
-type TLineMap = {
-  [key in TSector]: ILineCoords;
-};
-
-function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer) {
-  const generateGuideline = (): Line => {
-    const line = new Konva.Line({
-      points: [],
-      stroke: colors['--helpernode'],
-      strokeWidth: 1,
-      name: helpernode,
-    });
-    line.hide();
-    layer.add(line);
-    return line;
-  };
-  const redLine1 = generateGuideline();
-  const redLine2 = generateGuideline();
-  const redLine3 = generateGuideline();
-  const redLine4 = generateGuideline();
-
-  const generateLabel = (): Label => {
-    const label = new Konva.Label({ name: helpernode });
-    label.add(new Konva.Tag({ fill: colors['--helpernode'], cornerRadius: 5, name: helpernode }));
-    label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: helpernode }));
-    label.hide();
-    layer.add(label);
-    return label;
-  };
-  const label1 = generateLabel();
-  const label2 = generateLabel();
-  const label3 = generateLabel();
-  const label4 = generateLabel();
-
-  const buildObject = (node: Node): IFigure => {
-    return {
-      x: node.x(),
-      y: node.y(),
-      endX: node.x() + node.width(),
-      endY: node.y() + node.height(),
-      centerX: node.x() + node.width() / 2,
-      centerY: node.y() + node.height() / 2,
-    };
-  };
-  const defineSector = (target: IFigure, selected: IFigure): TSector => {
-    if (target.endX < selected.x && target.endY < selected.y) return 1;
-    if (target.x > selected.endX && target.endY < selected.y) return 3;
-    if (target.x > selected.endX && target.y > selected.endY) return 5;
-    if (target.endX < selected.x && target.y > selected.endY) return 7;
-
-    if (target.endY < selected.y) return 2;
-    if (target.x > selected.endX) return 4;
-    if (target.y > selected.endY) return 6;
-    if (target.endX < selected.x) return 8;
-
-    return 9;
-  };
-  const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
-
-  function drawGuideline(e: KonvaEventObject<MouseEvent>, line: Line, label: Label, map: TLineMap) {
-    const selectedNode = transformer.nodes()[0];
-
-    const target = buildObject(e.target);
-    const selected = buildObject(selectedNode);
-
-    const sector = defineSector(target, selected);
-    const noline = { sx: 0, sy: 0, ex: 0, ey: 0 };
-    const l = map[sector];
-
-    if (l === noline) return;
-
-    const linePoints = [l.sx, l.sy, l.ex, l.ey];
-    const points = [...linePoints];
-
-    const solid: number[] = [];
-    const dashed = [10, 10];
-
-    const lineSnapsToSelected =
-      l.ex >= selected.x && l.ex <= selected.endX && l.ey >= selected.y && l.ey <= selected.endY;
-    const dash = lineSnapsToSelected ? solid : dashed;
-
-    if (lineSnapsToSelected) {
-      const isVertical = l.sx == l.ex;
-      const labelText = Math.round(Math.abs(isVertical ? l.ey - l.sy : l.ex - l.sx));
-      label.getText().setAttrs({ text: labelText });
-      const halfTextWidth = label.getText().width() / 2;
-      const halfTextHeight = label.getText().height() / 2;
-      const lineCenters = {
-        x: Math.min(l.sx, l.ex) + Math.abs(l.sx - l.ex) / 2,
-        y: Math.min(l.sy, l.ey) + Math.abs(l.sy - l.ey) / 2,
-      };
-      label.setAttrs({ x: lineCenters.x - halfTextWidth, y: lineCenters.y - halfTextHeight });
-      label.show();
-    } else label.hide();
-
-    line.setAttrs({ points, dash });
-    line.show();
-    layer.draw();
-  }
-
-  function buildLeftGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
-    return {
-      [1]: { sx: target.endX, sy: target.endY, ex: target.endX, ey: selected.centerY },
-      [2]: noline,
-      [3]: { sx: selected.centerX, sy: target.endY, ex: selected.centerX, ey: selected.y },
-      [4]: noline,
-      [5]: { sx: selected.centerX, sy: target.y, ex: selected.centerX, ey: selected.endY },
-      [6]: noline,
-      [7]: { sx: target.endX, sy: target.y, ex: target.endX, ey: selected.centerY },
-      [8]: noline,
-      [9]: noline,
-    };
-  }
-
-  function buildRightGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
-    const defSecond = () => {
-      if (target.centerX < selected.x) return selected.x;
-      if (target.centerX > selected.endX) return selected.endX;
-      return target.centerX;
-    };
-    return {
-      [1]: { sx: selected.centerX, sy: target.endY, ex: selected.centerX, ey: selected.y },
-      [2]: {
-        sx: defSecond(),
-        sy: target.endY,
-        ex: defSecond(),
-        ey: selected.y,
-      },
-      [3]: { sx: target.x, sy: target.endY, ex: target.x, ey: selected.centerY },
-      [4]: noline,
-      [5]: { sx: target.x, sy: target.y, ex: target.x, ey: selected.centerY },
-      [6]: {
-        sx: defSecond(),
-        sy: target.y,
-        ex: defSecond(),
-        ey: selected.endY,
-      },
-      [7]: { sx: selected.centerX, sy: target.y, ex: selected.centerX, ey: selected.endY },
-      [8]: noline,
-      [9]: noline,
-    };
-  }
-
-  function buildTopGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
-    const defSecond = () => {
-      if (target.centerY < selected.y) return selected.y;
-      if (target.centerY > selected.endY) return selected.endY;
-      return target.centerY;
-    };
-
-    return {
-      [1]: { sx: target.endX, sy: target.endY, ex: selected.centerX, ey: target.endY },
-      [2]: noline,
-      [3]: { sx: target.x, sy: target.endY, ex: selected.centerX, ey: target.endY },
-      [4]: {
-        sx: target.x,
-        sy: defSecond(),
-        ex: selected.endX,
-        ey: defSecond(),
-      },
-      [5]: { sx: target.x, sy: selected.centerY, ex: selected.endX, ey: selected.centerY },
-      [6]: noline,
-      [7]: { sx: target.endX, sy: selected.centerY, ex: selected.x, ey: selected.centerY },
-      [8]: {
-        sx: target.endX,
-        sy: defSecond(),
-        ex: selected.x,
-        ey: defSecond(),
-      },
-      [9]: noline,
-    };
-  }
-
-  function buildBottomGuidelineMap(target: IFigure, selected: IFigure): TLineMap {
-    return {
-      [1]: { sx: target.endX, sy: selected.centerY, ex: selected.x, ey: selected.centerY },
-      [2]: noline,
-      [3]: { sx: target.x, sy: selected.centerY, ex: selected.endX, ey: selected.centerY },
-      [4]: noline,
-      [5]: { sx: target.x, sy: target.y, ex: selected.centerX, ey: target.y },
-      [6]: noline,
-      [7]: { sx: target.endX, sy: target.y, ex: selected.centerX, ey: target.y },
-      [8]: noline,
-      [9]: noline,
-    };
-  }
-
-  shape.on('mouseover dragmove', (e) => {
-    const selectedNode = transformer.nodes()[0];
-    if (!selectedNode || selectedNode === shape) return;
-    const target = buildObject(e.target);
-    const selected = buildObject(selectedNode);
-    drawGuideline(e, redLine1, label1, buildBottomGuidelineMap(target, selected));
-    drawGuideline(e, redLine2, label2, buildTopGuidelineMap(target, selected));
-    drawGuideline(e, redLine3, label3, buildLeftGuidelineMap(target, selected));
-    drawGuideline(e, redLine4, label4, buildRightGuidelineMap(target, selected));
-  });
-
-  shape.on('mouseout', () => {
-    redLine1.hide();
-    redLine2.hide();
-    redLine3.hide();
-    redLine4.hide();
-    label1.hide();
-    label2.hide();
-    label3.hide();
-    label4.hide();
-    layer.draw();
-  });
-}
-
-interface ISnapCoords {
-  sx: number;
-  sy: number;
-  ex: number;
-  ey: number;
-}
-function makeSnapable(shape: Shape, layer: Layer) {
-  const buildSnapline = () => {
-    const snapline = new Konva.Line({
-      points: [],
-      stroke: 'blue',
-      dash: [10, 10],
-      strokeWidth: 1,
-      name: helpernode,
-    });
-
-    snapline.hide();
-    layer.add(snapline);
-    return snapline;
-  };
-  const snaplineVertical = buildSnapline();
-  const snaplineHorizontal = buildSnapline();
-
-  shape.on('dragmove', (e: KonvaEventObject<MouseEvent>) => {
-    if (!e.evt.shiftKey) return snaplineVertical.hide();
-
-    const nodes = layer.children
-      .toArray()
-      .filter((n) => n.visible())
-      .filter((n) => n !== shape)
-      .filter(isNotHelpernode);
-
-    const guidesX = nodes.map((node) => [node.x(), node.x() + node.width()]).flat();
-    const guidesY = nodes.map((node) => [node.y(), node.y() + node.height()]).flat();
-
-    const OFFSET = 15;
-
-    const nearestXStart = (x: number) => Math.abs(shape.x() - x) < OFFSET;
-    const nearestXEnd = (x: number) => Math.abs(shape.x() + shape.width() - x) < OFFSET;
-    const nearestYStart = (y: number) => Math.abs(shape.y() - y) < OFFSET;
-    const nearestYEnd = (y: number) => Math.abs(shape.y() + shape.height() - y) < OFFSET;
-    const guides: ISnapCoords = {
-      sx: Math.min(...guidesX.filter(nearestXStart)),
-      ex: Math.min(...guidesX.filter(nearestXEnd)),
-      sy: Math.min(...guidesY.filter(nearestYStart)),
-      ey: Math.min(...guidesY.filter(nearestYEnd)),
-    };
-
-    const diffs: ISnapCoords = {
-      sx: Math.abs(guides.sx - shape.x()),
-      ex: Math.abs(guides.ex - shape.x() + shape.width()),
-      sy: Math.abs(guides.sy - shape.y()),
-      ey: Math.abs(guides.ey - shape.y() + shape.height()),
-    };
-
-    const getNearestX = (guides: ISnapCoords, diffs: ISnapCoords) => {
-      if (isNaN(diffs.sx) && isNaN(diffs.ex)) return NaN;
-      if (isNaN(diffs.sx)) return guides.ex - shape.width();
-      if (isNaN(diffs.ex)) return guides.sx;
-      return diffs.sx < diffs.ex ? guides.sx : guides.ex - shape.width();
-    };
-    const getNearestY = (guides: ISnapCoords, diffs: ISnapCoords) => {
-      if (isNaN(diffs.sy) && isNaN(diffs.ey)) return NaN;
-      if (isNaN(diffs.sy)) return guides.ey - shape.height();
-      if (isNaN(diffs.ey)) return guides.sy;
-      return diffs.sy < diffs.ey ? guides.sy : guides.ey - shape.height();
-    };
-
-    const x = getNearestX(guides, diffs);
-    const y = getNearestY(guides, diffs);
-
-    const isSnappingToStartX = x == guides.sx;
-    const snaplineX = Math.round(isSnappingToStartX ? x : guides.ex);
-    if (!isNaN(x) && isFinite(x)) {
-      snaplineVertical.setAttrs({ points: [snaplineX, -6000, snaplineX, +6000] });
-      snaplineVertical.show();
-    } else {
-      snaplineVertical.hide();
-      destorySnapNodes(layer);
-    }
-
-    const isSnappingToStartY = y == guides.sy;
-    const snaplineY = Math.round(isSnappingToStartY ? y : guides.ey);
-    if (!isNaN(y) && isFinite(y)) {
-      snaplineHorizontal.setAttrs({ points: [-6000, snaplineY, +6000, snaplineY] });
-      snaplineHorizontal.show();
-    } else {
-      snaplineHorizontal.hide();
-      destorySnapNodes(layer);
-    }
-
-    higlightSnappedNode({ x: snaplineX, y: snaplineY }, layer, shape);
-    const coords = { x: isFinite(x) ? x : shape.x(), y: isFinite(y) ? y : shape.y() };
-    const hoverRect = layer.findOne((node: Node) => node.name() == helpernodeHover);
-    hoverRect?.setAttrs(coords);
-    shape.setAttrs(coords);
-  });
-
-  shape.on('dragend', () => {
-    snaplineVertical.hide();
-    snaplineHorizontal.hide();
-    destorySnapNodes(layer);
-  });
-}
-
-function destorySnapNodes(layer: Layer) {
-  layer.find((node: Node) => node.name() == helpernodeSnappedRect).each((n: Node) => n.destroy());
-}
-function higlightSnappedNode(snaplineCoords: IPosition, layer: Layer, shape: Shape) {
-  const { x, y } = snaplineCoords;
-  const snappingNodes = layer
-    .find(
-      (node: Node) =>
-        Math.round(node.x()) == x ||
-        Math.round(node.x() + node.width()) == x ||
-        Math.round(node.y()) == y ||
-        Math.round(node.y() + node.height()) == y,
-    )
-    .toArray()
-    .filter((node: Node) => node !== shape)
-    .filter(isNotHelpernode);
-
-  // console.log('>>>>>\n');
-  // const f = (shape: Node) => [shape.x(), shape.y(), shape.x() + shape.width(), shape.y() + shape.height()];
-  // console.log('snap', snaplineCoords);
-  // console.log('shape', f(shape));
-  // layer
-  //   .find(isNotHelpernode)
-  //   .toArray()
-  //   .filter((node: Node) => node !== shape)
-  //   .forEach((n, i) => console.log(`snap ${i}`, f(n)));
-  // console.log('<<<<<');
-  // destorySnapNodes(layer);
-
-  const buildSnappingRect = (node: Node): Rect => {
-    return new Konva.Rect({
-      x: node.x(),
-      y: node.y(),
-      width: node.width(),
-      height: node.height(),
-      stroke: 'blue',
-      strokeWidth: 1,
-      name: helpernodeSnappedRect,
-    });
-  };
-
-  const snappingRects = snappingNodes.map(buildSnappingRect);
-  snappingRects.forEach((rect: Rect) => layer.add(rect));
-}
 enum ETemplateNodeTypes {
   TEXT = 'TEXT',
   TEMPLATE_RECT = 'TEMPLATE_RECT',
@@ -764,7 +221,7 @@ function App(): React.ReactElement {
 
         return newBox.width < MIN_WIDTH ? oldBox : newBox;
       },
-      name: helpernode,
+      name: EHelpernode.COMMON,
     });
 
     stage.on('click', setCoordsAndSizeAttrs);
@@ -835,7 +292,7 @@ function App(): React.ReactElement {
     const hoveredNode = new Konva.Rect({
       stroke: colors['--helpernode'],
       strokeWidth: 1,
-      name: helpernodeHoveredOnSidear,
+      name: EHelpernode.HOVERED_ON_SIDEBAR,
     });
     hoveredNode.hide();
     layer.add(hoveredNode);
@@ -985,7 +442,7 @@ function App(): React.ReactElement {
   // console.log('template', template);
 
   function handleRemoveNodes() {
-    const nodes = transformer?.nodes().filter(destructibleNodes).filter(isNotHelpernode) || [];
+    const nodes = transformer?.nodes().filter(destructibleNodes).filter(utils.isNotHelpernode) || [];
 
     const destroyTemplateNode = (node: Node) => {
       const nodes = template.nodes.filter((n) => n.guid != node.id());
@@ -1005,7 +462,7 @@ function App(): React.ReactElement {
   };
 
   function getHoveredBySidebarNode(layer?: Layer): Node | undefined {
-    return layer?.findOne((node: Node) => node.name().includes(helpernodeHoveredOnSidear));
+    return layer?.findOne((node: Node) => node.name().includes(EHelpernode.HOVERED_ON_SIDEBAR));
   }
   function highlightHoveredNode(node: Node) {
     const hoveredNode = getHoveredBySidebarNode(layer);
@@ -1020,6 +477,26 @@ function App(): React.ReactElement {
     });
     layer?.draw();
   }
+
+  function handleAddImage(img: IImage) {
+    Konva.Image.fromURL(img.src, (image: Image) => {
+      image.setAttrs({
+        x: 200,
+        y: 50,
+        draggable: true,
+        // scaleX: 0.5,
+        // scaleY: 0.5,
+      });
+      layer?.add(image);
+
+      layer && transformer && makeHoverable(image, layer, transformer);
+      layer && transformer && makeGuidelineable(image, transformer, layer);
+      layer && makeSnapable(image, layer);
+      layer?.draw();
+      image.on('click', () => selectNode(transformer, image));
+    });
+  }
+
   return (
     <>
       <NavBar />
@@ -1048,6 +525,14 @@ function App(): React.ReactElement {
 
           <div className="toolbar">
             <div className="toolbar__group">
+              <div className="tool">
+                <SaveIcon />
+              </div>
+
+              <div className="tool">
+                <CopyIcon />
+              </div>
+
               <div className="tool">
                 <UndoIcon />
               </div>
@@ -1100,6 +585,22 @@ function App(): React.ReactElement {
                 <LabeledInput label="H" value={(size.height || '').toString()} />
               </div>
             </div>
+
+            <div className="controls-section">
+              <div className={`gallery`}>
+                {images.map((img, idx) => {
+                  return (
+                    <div className="gallery__image" key={idx} onClick={() => handleAddImage(img)}>
+                      <img src={img.src} alt="" />
+                    </div>
+                  );
+                })}
+
+                {Array.from(new Array(3 - (images.length % 3))).map((_elem, idx) => (
+                  <div className="gallery__image-blank" key={idx} />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1108,3 +609,41 @@ function App(): React.ReactElement {
 }
 
 export default App;
+
+interface IImage {
+  src: string;
+  alt?: string;
+}
+const images: IImage[] = [
+  {
+    src: 'https://images.ctfassets.net/hrltx12pl8hq/3MbF54EhWUhsXunc5Keueb/60774fbbff86e6bf6776f1e17a8016b4/04-nature_721703848.jpg?fit=fill&w=480&h=270',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+
+  {
+    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+  },
+];
