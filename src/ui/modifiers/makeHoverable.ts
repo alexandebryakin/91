@@ -11,6 +11,8 @@ const hoverRect = new Konva.Rect({ stroke: colors['--helpernode'], strokeWidth: 
 
 function makeHoverable(shape: Shape, layer: Layer, transformer: Transformer): void {
   layer?.add(hoverRect);
+  // if (!layer.findOne(EHelpernode.HOVER)) layer?.add(hoverRect);
+
   shape.on('mouseover dragmove', (e) => {
     const dontHoverIfElementIsSelected = transformer?.nodes()[0] === e.target;
     if (dontHoverIfElementIsSelected) return;

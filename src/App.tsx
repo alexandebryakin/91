@@ -1,6 +1,7 @@
 import Konva from 'konva';
 import { v4 as uuid } from 'uuid';
 import { Layer } from 'konva/types/Layer';
+import { Box, TransformerConfig } from 'konva/types/shapes/Transformer';
 import { Transformer } from 'konva/types/shapes/Transformer';
 import { Text } from 'konva/types/shapes/Text';
 import { Node } from 'konva/types/Node';
@@ -15,9 +16,6 @@ import PinIcon from './icons/PinIcon';
 import { Shape } from 'konva/types/Shape';
 import TextIcon from './icons/TextIcon';
 import ButtonRemove from './ui/components/ButtonRemove';
-import { Line } from 'konva/types/shapes/Line';
-import { Label } from 'konva/types/shapes/Label';
-import { Rect } from 'konva/types/shapes/Rect';
 import UndoIcon from './icons/UndoIcon';
 import RedoIcon from './icons/RedoIcon';
 import ImageIcon from './icons/ImageIcon';
@@ -32,6 +30,7 @@ import utils from './ui/modifiers/utils';
 import colors from './ui/colors';
 import makeGuidelineable from './ui/modifiers/makeGuidelineable';
 import makeHoverable from './ui/modifiers/makeHoverable';
+import { Rect } from 'konva/types/shapes/Rect';
 
 interface ISideBar {
   template: ITemplate;
@@ -156,6 +155,97 @@ interface IPosition {
   x: number;
   y: number;
 }
+// <<<<<
+// <<<<<
+// <<<<<
+// <<<<<
+
+enum ETemplateNodeTypes {
+  TEXT = 'TEXT',
+  TEMPLATE_RECT = 'TEMPLATE_RECT',
+}
+const genTemplateNodeName = (type: ETemplateNodeTypes) => `template-node ${type}`;
+
+const indestructibleNodeNames = [ETemplateNodeTypes.TEMPLATE_RECT];
+const destructibleNodes = (node: Node) => !indestructibleNodeNames.some((n) => node.name().includes(n));
+
+// const ZIndexes = {
+//   [ETemplateNodeTypes.TEMPLATE_RECT]: 3,
+//   [ETemplateNodeTypes.TEXT]: 2,
+//   [EHelpernode.COMMON]: 1,
+// };
+
+const styles = {
+  anchorStroke: colors['--border-color'],
+  anchorFill: colors['--color-bg-tool'],
+  anchorSize: 7,
+  borderDash: [5, 5],
+  borderStroke: '#727585',
+
+  rotateEnabled: false,
+} as TransformerConfig;
+const transformer: Transformer = new Konva.Transformer({ ...styles });
+
+enum ETransformerTypes {
+  TEXT = 'TEXT',
+  IMAGE = 'IMAGE',
+}
+function transformerBuilder(type: ETransformerTypes = ETransformerTypes.TEXT): Transformer {
+  // ['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']
+  const configs = {
+    [ETransformerTypes.TEXT]: {
+      name: EHelpernode.COMMON,
+      enabledAnchors: ['middle-left', 'middle-right'],
+      boundBoxFunc: (oldBox: Box, newBox: Box) => {
+        const MIN_WIDTH = 20;
+
+        return newBox.width < MIN_WIDTH ? oldBox : newBox;
+      },
+    } as TransformerConfig,
+
+    [ETransformerTypes.IMAGE]: {
+      name: EHelpernode.COMMON,
+      enabledAnchors: [
+        'top-left',
+        'top-center',
+        'top-right',
+        'middle-right',
+        'middle-left',
+        'bottom-left',
+        'bottom-center',
+        'bottom-right',
+      ],
+      boundBoxFunc: (oldBox: Box, newBox: Box) => {
+        const MIN_WIDTH = 20;
+
+        return newBox.width < MIN_WIDTH ? oldBox : newBox;
+      },
+    } as TransformerConfig,
+  };
+
+  transformer.setAttrs(configs[type]);
+  transformer.moveToTop();
+
+  return transformer;
+}
+
+const hoveredNode = new Konva.Rect({
+  stroke: colors['--helpernode'],
+  strokeWidth: 1,
+  name: EHelpernode.HOVERED_ON_SIDEBAR,
+});
+function hoveredOnSidebarRectBuilder(): Rect {
+  return hoveredNode;
+}
+
+enum EFactoryTypes {
+  TRANSFORMER = 'TRANSFORMER',
+}
+function factory(type: EFactoryTypes) {
+  if (type == EFactoryTypes.TRANSFORMER) return transformerBuilder();
+
+  return transformerBuilder();
+}
 
 function makeTextTransformable(text: Text) {
   const MIN_WIDTH = 20;
@@ -170,15 +260,6 @@ function makeTextTransformable(text: Text) {
     });
   });
 }
-
-enum ETemplateNodeTypes {
-  TEXT = 'TEXT',
-  TEMPLATE_RECT = 'TEMPLATE_RECT',
-}
-const genTemplateNodeName = (type: ETemplateNodeTypes) => `template-node ${type}`;
-
-const indestructibleNodeNames = [ETemplateNodeTypes.TEMPLATE_RECT];
-const destructibleNodes = (node: Node) => !indestructibleNodeNames.some((n) => node.name().includes(n));
 
 function App(): React.ReactElement {
   const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
@@ -207,22 +288,9 @@ function App(): React.ReactElement {
     const layer = new Konva.Layer();
     stage.add(layer);
 
-    const tr = new Konva.Transformer({
-      nodes: [],
-      rotateEnabled: false,
-      enabledAnchors: ['middle-left', 'middle-right'],
-      anchorStroke: colors['--border-color'],
-      anchorFill: colors['--color-bg-tool'],
-      anchorSize: 7,
-      borderDash: [5, 5],
-      borderStroke: '#727585',
-      boundBoxFunc: (oldBox, newBox) => {
-        const MIN_WIDTH = 20;
-
-        return newBox.width < MIN_WIDTH ? oldBox : newBox;
-      },
-      name: EHelpernode.COMMON,
-    });
+    const tr = transformerBuilder(ETransformerTypes.TEXT);
+    tr.on('transform dragmove', setCoordsAndSizeAttrs);
+    layer.add(tr);
 
     stage.on('click', setCoordsAndSizeAttrs);
     function loadTemplate(template: ITemplate, transformer: Transformer) {
@@ -278,10 +346,6 @@ function App(): React.ReactElement {
     }
     loadTemplate(loadedTemplate, tr);
 
-    tr.on('transform dragmove', setCoordsAndSizeAttrs);
-
-    layer.add(tr);
-
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
       const nodes = e.target === stage ? [] : [e.target];
       tr.nodes(nodes);
@@ -289,11 +353,7 @@ function App(): React.ReactElement {
     };
     stage.on('click', handleSelection);
 
-    const hoveredNode = new Konva.Rect({
-      stroke: colors['--helpernode'],
-      strokeWidth: 1,
-      name: EHelpernode.HOVERED_ON_SIDEBAR,
-    });
+    const hoveredNode = hoveredOnSidebarRectBuilder();
     hoveredNode.hide();
     layer.add(hoveredNode);
 
@@ -327,25 +387,25 @@ function App(): React.ReactElement {
 
     setStage(stage);
     setLayer(layer);
-    setTransformer(tr);
+    // setTransformer(tr);
   }, []);
 
   const [stage, setStage] = React.useState<Stage>();
   const [layer, setLayer] = React.useState<Layer>();
-  const [transformer, setTransformer] = React.useState<Transformer>(new Konva.Transformer({}));
+  const [transformer, setTransformer] = React.useState<Transformer>(transformerBuilder());
 
   const [coords, setCoords] = React.useState({ x: 0, y: 0 });
   const [size, setSize] = React.useState({ width: 0, height: 0 });
 
   const [currentlyAddingTextNode, setCurrentlyAddingTextNode] = React.useState(false);
-  const onClickTextTool2 = () => {
+  const onClickTextTool = () => {
     if (currentlyAddingTextNode) return;
     else setCurrentlyAddingTextNode(true);
     // currentlyAddingTextNode = true;
 
     const text = new Konva.Text({
-      x: 50,
-      y: 60,
+      // x: 50,
+      // y: 60,
       fontSize: 20,
       text: 'New text ...',
       draggable: true,
@@ -353,8 +413,11 @@ function App(): React.ReactElement {
       id: uuid(), // ref: guid
     });
     layer?.add(text);
+
     const { textWidth, textHeight } = text;
     setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
+
+    text.zIndex(2);
 
     makeTextTransformable(text);
     layer && transformer && stage && makeTextEditible(text, transformer, stage, layer);
@@ -458,15 +521,13 @@ function App(): React.ReactElement {
   }
 
   const findTemplateNodeByGuid = (guid: string): Node | undefined => {
-    return layer?.findOne((node: Node) => node.id() == guid);
+    const node = layer?.findOne((node: Node) => node.id() == guid);
+    if (!node) console.warn('Node not found. guid: ', guid);
+    return node;
   };
 
-  function getHoveredBySidebarNode(layer?: Layer): Node | undefined {
-    return layer?.findOne((node: Node) => node.name().includes(EHelpernode.HOVERED_ON_SIDEBAR));
-  }
   function highlightHoveredNode(node: Node) {
-    const hoveredNode = getHoveredBySidebarNode(layer);
-    if (!hoveredNode) return;
+    const hoveredNode = hoveredOnSidebarRectBuilder();
 
     hoveredNode.show();
     hoveredNode.setAttrs({
@@ -507,6 +568,8 @@ function App(): React.ReactElement {
             template={template}
             onRowClick={(node: INode) => {
               const n = findTemplateNodeByGuid(node.guid);
+              if (!n) console.warn('Node not found. INode:', node);
+
               n && transformer.nodes([n]);
             }}
             onMouseOverRow={(node: INode) => {
@@ -514,7 +577,7 @@ function App(): React.ReactElement {
               n && highlightHoveredNode(n);
             }}
             onMouseLeaveRow={() => {
-              const hoveredNode = getHoveredBySidebarNode(layer);
+              const hoveredNode = hoveredOnSidebarRectBuilder();
               hoveredNode?.hide();
             }}
           />
@@ -557,7 +620,7 @@ function App(): React.ReactElement {
                 <ImageIcon />
               </div>
 
-              <div className={`tool ${currentlyAddingTextNode ? 'tool--active' : ''}`} onClick={onClickTextTool2}>
+              <div className={`tool ${currentlyAddingTextNode ? 'tool--active' : ''}`} onClick={onClickTextTool}>
                 <TextAddIcon />
               </div>
             </div>

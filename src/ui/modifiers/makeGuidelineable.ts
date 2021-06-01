@@ -57,10 +57,13 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
   const redLine4 = generateGuideline();
 
   const generateLabel = (): Label => {
+    const tag = new Konva.Tag({ fill: colors['--helpernode'], cornerRadius: 5, name: EHelpernode.COMMON });
+    const text = new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: EHelpernode.COMMON });
     const label = new Konva.Label({ name: EHelpernode.COMMON });
-    label.add(new Konva.Tag({ fill: colors['--helpernode'], cornerRadius: 5, name: EHelpernode.COMMON }));
-    label.add(new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: EHelpernode.COMMON }));
+    label.add(tag);
+    label.add(text);
     label.hide();
+
     layer.add(label);
     return label;
   };
