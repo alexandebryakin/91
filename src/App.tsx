@@ -141,6 +141,17 @@ const buildTextNode = (text: Text): INodeText => {
     } as IMetaText,
   };
 };
+function buildImageNode(image: Image) {
+  return {
+    guid: image.id(),
+    size: { width: image.width(), height: image.height() },
+    position: { x: image.x(), y: image.y() },
+    draggable: image.draggable(),
+    meta: {
+      type: 'image',
+    } as IMetaImage,
+  };
+}
 interface IMetaImage {
   type: 'image';
   src: string;
@@ -162,8 +173,11 @@ interface IPosition {
 
 enum ETemplateNodeTypes {
   TEXT = 'TEXT',
+  IMAGE = 'IMAGE',
   TEMPLATE_RECT = 'TEMPLATE_RECT',
 }
+type TPlaceableNodeTypes = ETemplateNodeTypes.TEXT | ETemplateNodeTypes.IMAGE;
+
 const genTemplateNodeName = (type: ETemplateNodeTypes) => `template-node ${type}`;
 
 const indestructibleNodeNames = [ETemplateNodeTypes.TEMPLATE_RECT];
@@ -185,12 +199,15 @@ const styles = {
   rotateEnabled: false,
 } as TransformerConfig;
 const transformer: Transformer = new Konva.Transformer({ ...styles });
+// transformer.on('transform', (e) => {
+//   e.target
+// });
 
 enum ETransformerTypes {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',
 }
-function transformerBuilder(type: ETransformerTypes = ETransformerTypes.TEXT): Transformer {
+function setupTransformer(type: ETransformerTypes = ETransformerTypes.TEXT): Transformer {
   // ['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']
   const configs = {
     [ETransformerTypes.TEXT]: {
@@ -222,11 +239,21 @@ function transformerBuilder(type: ETransformerTypes = ETransformerTypes.TEXT): T
       },
     } as TransformerConfig,
   };
+  console.log('🚀 ~ file: type', type);
 
   transformer.setAttrs(configs[type]);
   transformer.moveToTop();
+  transformer.getLayer()?.draw();
 
   return transformer;
+}
+function getTransformer(): Transformer {
+  return transformer;
+}
+
+const layer = new Konva.Layer();
+function buildLayer() {
+  return layer;
 }
 
 const hoveredNode = new Konva.Rect({
@@ -242,30 +269,108 @@ enum EFactoryTypes {
   TRANSFORMER = 'TRANSFORMER',
 }
 function factory(type: EFactoryTypes) {
-  if (type == EFactoryTypes.TRANSFORMER) return transformerBuilder();
+  if (type == EFactoryTypes.TRANSFORMER) return setupTransformer();
 
-  return transformerBuilder();
+  return setupTransformer();
 }
 
-function makeTextTransformable(text: Text) {
+function makeTransformable(shape: Shape, type: ETransformerTypes) {
+  console.log('type -> ', type);
   const MIN_WIDTH = 20;
-  text.on('transform', () => {
-    // with enabled anchors we can only change scaleX
-    // so we don't need to reset height
-    // just width
-    text.setAttrs({
-      width: Math.max(text.width() * text.scaleX(), MIN_WIDTH),
+  const handlers = {
+    [ETransformerTypes.IMAGE]: (node: Node) => ({
+      width: Math.max(node.width() * node.scaleX(), MIN_WIDTH),
+      height: Math.max(node.height() * node.scaleY(), MIN_WIDTH),
+    }),
+
+    [ETransformerTypes.TEXT]: (node: Node) => ({
+      // with enabled anchors we can only change scaleX
+      // so we don't need to reset height
+      // just width
+      width: Math.max(node.width() * node.scaleX(), MIN_WIDTH),
       scaleX: 1,
       scaleY: 1,
-    });
+    }),
+  };
+
+  shape.on('transform', (e) => {
+    const handler = handlers[type];
+    shape.setAttrs(handler(e.target));
   });
+}
+
+const templateRect = new Konva.Rect({
+  x: 20,
+  y: 20,
+  fill: '#fff',
+
+  name: genTemplateNodeName(ETemplateNodeTypes.TEMPLATE_RECT),
+});
+function buildTemplateRect(): Rect {
+  return templateRect;
+}
+function loadTemplate(
+  template: ITemplate,
+  transformer: Transformer,
+  layer: Layer,
+  stage: Stage,
+  setCoordsAndSizeAttrs: (e: KonvaEventObject<MouseEvent>) => void,
+) {
+  const templateRect = buildTemplateRect();
+  templateRect.setAttrs({ width: template.size.width, height: template.size.height });
+  layer.add(templateRect);
+  layer.draw();
+
+  template.nodes.forEach((node) => {
+    function defineBuilder(node: INode): (node: INode) => Shape | undefined {
+      //
+      function textNodeBuilder(n: INode): Text {
+        const node = n as INodeText;
+        const text = new Konva.Text({
+          x: node.position.x,
+          y: node.position.y,
+          width: node.size.width,
+          height: node.size.height,
+          fontSize: node.meta.fontSize,
+          text: node.meta.content,
+          draggable: node.draggable,
+          name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
+          id: n.guid,
+        });
+
+        makeTransformable(text, ETransformerTypes.TEXT);
+        makeTextEditible(text, transformer, stage, layer);
+        makeHoverable(text, layer, transformer);
+        makeGuidelineable(text, transformer, layer);
+        makeSnapable(text, layer);
+        text.on('click dragmove', setCoordsAndSizeAttrs);
+        text.on('click', () => setupTransformer(ETransformerTypes.TEXT));
+
+        return text;
+      }
+      if (node.meta.type == 'text') return textNodeBuilder;
+
+      console.error('No builder found for node:', node);
+      return () => undefined;
+    }
+    const build = defineBuilder(node);
+
+    const shape = build(node);
+    shape && layer.add(shape);
+  });
+
+  layer.draw();
 }
 
 function App(): React.ReactElement {
   const [template, setTemplate] = React.useState<ITemplate>(loadedTemplate);
 
-  const konvaStageRef = React.useRef<HTMLDivElement>(null);
   const konvaStageContainer = 'konva-stage-container';
+  const konvaStageRef = React.useRef<HTMLDivElement>(null);
+
+  const layer = buildLayer();
+  const [stage, setStage] = React.useState<Stage>();
+  const transformer = getTransformer();
 
   const setCoordsAndSizeAttrs = (e: KonvaEventObject<MouseEvent>) => {
     setCoords({ x: e.target.x(), y: e.target.y() });
@@ -275,7 +380,6 @@ function App(): React.ReactElement {
   React.useEffect(() => {
     const width = konvaStageRef.current?.offsetWidth;
     const height = konvaStageRef.current?.offsetHeight;
-
     const stage = new Konva.Stage({
       container: konvaStageContainer,
       width: width,
@@ -284,72 +388,22 @@ function App(): React.ReactElement {
       scaleX: 1, // 0.5
       scaleY: 1, // 0.5
     });
+    setStage(stage);
 
-    const layer = new Konva.Layer();
     stage.add(layer);
+    layer.add(transformer);
 
-    const tr = transformerBuilder(ETransformerTypes.TEXT);
-    tr.on('transform dragmove', setCoordsAndSizeAttrs);
-    layer.add(tr);
+    // const transformer = buildTransformer(ETransformerTypes.TEXT);
+    transformer.on('transform dragmove', setCoordsAndSizeAttrs);
 
     stage.on('click', setCoordsAndSizeAttrs);
-    function loadTemplate(template: ITemplate, transformer: Transformer) {
-      const templateRect = new Konva.Rect({
-        x: 20,
-        y: 20,
-        fill: '#fff',
-        width: template.size.width,
-        height: template.size.height,
-        name: genTemplateNodeName(ETemplateNodeTypes.TEMPLATE_RECT),
-      });
-      layer.add(templateRect);
-      layer.draw();
 
-      template.nodes.forEach((node) => {
-        function defineBuilder(node: INode): (node: INode) => Shape | undefined {
-          //
-          function textNodeBuilder(n: INode): Text {
-            const node = n as INodeText;
-            const text = new Konva.Text({
-              x: node.position.x,
-              y: node.position.y,
-              width: node.size.width,
-              height: node.size.height,
-              fontSize: node.meta.fontSize,
-              text: node.meta.content,
-              draggable: node.draggable,
-              name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-              id: n.guid,
-            });
-
-            makeTextTransformable(text);
-            makeTextEditible(text, transformer, stage, layer);
-            makeHoverable(text, layer, transformer);
-            makeGuidelineable(text, transformer, layer);
-            makeSnapable(text, layer);
-            text.on('click dragmove', setCoordsAndSizeAttrs);
-
-            return text;
-          }
-          if (node.meta.type == 'text') return textNodeBuilder;
-
-          console.error('No builder found for node:', node);
-          return () => undefined;
-        }
-        const build = defineBuilder(node);
-
-        const shape = build(node);
-        shape && layer.add(shape);
-      });
-
-      layer.draw();
-    }
-    loadTemplate(loadedTemplate, tr);
+    loadTemplate(loadedTemplate, transformer, layer, stage, setCoordsAndSizeAttrs);
 
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
       const nodes = e.target === stage ? [] : [e.target];
-      tr.nodes(nodes);
-      setPinned(nodes.length != 0 && !isSelectionDraggable(tr));
+      transformer.nodes(nodes);
+      setPinned(nodes.length != 0 && !isSelectionDraggable(transformer));
     };
     stage.on('click', handleSelection);
 
@@ -384,15 +438,7 @@ function App(): React.ReactElement {
       stage.batchDraw();
     };
     stage.on('wheel', handleStageScale);
-
-    setStage(stage);
-    setLayer(layer);
-    // setTransformer(tr);
   }, []);
-
-  const [stage, setStage] = React.useState<Stage>();
-  const [layer, setLayer] = React.useState<Layer>();
-  const [transformer, setTransformer] = React.useState<Transformer>(transformerBuilder());
 
   const [coords, setCoords] = React.useState({ x: 0, y: 0 });
   const [size, setSize] = React.useState({ width: 0, height: 0 });
@@ -404,26 +450,23 @@ function App(): React.ReactElement {
     // currentlyAddingTextNode = true;
 
     const text = new Konva.Text({
-      // x: 50,
-      // y: 60,
+      x: 50,
+      y: 60,
       fontSize: 20,
       text: 'New text ...',
       draggable: true,
       name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
       id: uuid(), // ref: guid
     });
-    layer?.add(text);
-
-    const { textWidth, textHeight } = text;
-    setSize({ width: Math.round(textWidth), height: Math.round(textHeight) });
+    layer.add(text);
 
     text.zIndex(2);
 
-    makeTextTransformable(text);
-    layer && transformer && stage && makeTextEditible(text, transformer, stage, layer);
-    layer && transformer && makeHoverable(text, layer, transformer);
-    layer && transformer && makeGuidelineable(text, transformer, layer);
-    layer && makeSnapable(text, layer);
+    makeTransformable(text, ETransformerTypes.TEXT);
+    stage && makeTextEditible(text, transformer, stage, layer);
+    makeHoverable(text, layer, transformer);
+    makeGuidelineable(text, transformer, layer);
+    makeSnapable(text, layer);
 
     const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
       const currentPositionConsideringStageScale = (): IPosition => {
@@ -443,27 +486,24 @@ function App(): React.ReactElement {
       const positionWithStageScale = currentPositionConsideringStageScale();
       const { x, y } = centerCursorOnElement(positionWithStageScale);
       text.setAttrs({ x, y });
-      layer?.draw();
+      layer.draw();
       setCoordsAndSizeAttrs(e);
     };
 
     const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
       e.evt.preventDefault();
       text.destroy();
-      layer?.draw();
+      layer.draw();
       cleanup();
     };
 
     const cleanup = () => {
       stage?.off('contextmenu', handleRightMouseClick);
       stage?.off('mousemove', handleMouseMove);
-      cleanClickOnTextAfterPlacement();
+      text.off('click.text-placement', placeText);
       setCurrentlyAddingTextNode(false);
     };
 
-    const cleanClickOnTextAfterPlacement = () => {
-      text.off('click.text-placement', placeText);
-    };
     const placeText = () => {
       cleanup();
       text.on('dragmove', setCoordsAndSizeAttrs);
@@ -475,15 +515,17 @@ function App(): React.ReactElement {
       });
     };
 
+    text.on('click', () => setupTransformer(ETransformerTypes.TEXT));
+
     stage?.on('mousemove', handleMouseMove);
     stage?.on('contextmenu', handleRightMouseClick);
-    text?.on('click.text-placement', placeText);
+    text.on('click.text-placement', placeText);
 
     stage?.batchDraw();
   };
 
   const handlePinCoords = () => {
-    const nodes = transformer?.nodes() || [];
+    const nodes = transformer.nodes() || [];
     if (nodes.length == 0) return;
 
     const draggable = isSelectionDraggable(transformer);
@@ -491,9 +533,9 @@ function App(): React.ReactElement {
     nodes.forEach((node) => node.draggable(!draggable));
   };
 
-  const isSelectionDraggable = (tr: Transformer | undefined): boolean => {
-    if (!tr?.nodes() || tr?.nodes().length == 0) return false;
-    return tr?.nodes().every((node) => node.draggable());
+  const isSelectionDraggable = (tr: Transformer): boolean => {
+    if (!tr.nodes() || tr.nodes().length == 0) return false;
+    return tr.nodes().every((node) => node.draggable());
   };
 
   const [pinned, setPinned] = React.useState(false);
@@ -505,7 +547,7 @@ function App(): React.ReactElement {
   // console.log('template', template);
 
   function handleRemoveNodes() {
-    const nodes = transformer?.nodes().filter(destructibleNodes).filter(utils.isNotHelpernode) || [];
+    const nodes = transformer.nodes().filter(destructibleNodes).filter(utils.isNotHelpernode) || [];
 
     const destroyTemplateNode = (node: Node) => {
       const nodes = template.nodes.filter((n) => n.guid != node.id());
@@ -515,13 +557,12 @@ function App(): React.ReactElement {
 
     nodes.forEach(destroyTemplateNode);
     nodes.forEach((node: Node) => node.destroy());
-    // transformer?.hide();
-    transformer?.nodes([]);
-    layer?.batchDraw();
+    transformer.nodes([]);
+    layer.batchDraw();
   }
 
   const findTemplateNodeByGuid = (guid: string): Node | undefined => {
-    const node = layer?.findOne((node: Node) => node.id() == guid);
+    const node = layer.findOne((node: Node) => node.id() == guid);
     if (!node) console.warn('Node not found. guid: ', guid);
     return node;
   };
@@ -536,7 +577,7 @@ function App(): React.ReactElement {
       width: node.width(),
       height: node.height(),
     });
-    layer?.draw();
+    layer.draw();
   }
 
   function handleAddImage(img: IImage) {
@@ -545,17 +586,213 @@ function App(): React.ReactElement {
         x: 200,
         y: 50,
         draggable: true,
-        // scaleX: 0.5,
-        // scaleY: 0.5,
+        id: uuid(),
       });
-      layer?.add(image);
+      layer.add(image);
 
-      layer && transformer && makeHoverable(image, layer, transformer);
-      layer && transformer && makeGuidelineable(image, transformer, layer);
-      layer && makeSnapable(image, layer);
-      layer?.draw();
-      image.on('click', () => selectNode(transformer, image));
+      makeTransformable(image, ETransformerTypes.IMAGE);
+      makeHoverable(image, layer, transformer);
+      makeGuidelineable(image, transformer, layer);
+      makeSnapable(image, layer);
+      image.on('click dragmove', setCoordsAndSizeAttrs);
+
+      const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+        const currentPositionConsideringStageScale = (): IPosition => {
+          const scaleX = stage?.scaleX() || 1;
+          const scaleY = stage?.scaleY() || 1;
+          const x = e.evt.offsetX / scaleX - (stage?.x() || 0) / scaleX;
+          const y = e.evt.offsetY / scaleY - (stage?.y() || 0) / scaleY;
+          return { x, y };
+        };
+
+        const centerCursorOnElement = ({ x, y }: IPosition): IPosition => {
+          return {
+            x: x - image.width() / 2,
+            y: y - image.height() / 2,
+          };
+        };
+        const positionWithStageScale = currentPositionConsideringStageScale();
+        const { x, y } = centerCursorOnElement(positionWithStageScale);
+        image.setAttrs({ x, y });
+        layer.draw();
+        setCoordsAndSizeAttrs(e);
+      };
+
+      const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
+        e.evt.preventDefault();
+        image.destroy();
+        layer.draw();
+        cleanup();
+      };
+
+      const cleanup = () => {
+        stage?.off('contextmenu', handleRightMouseClick);
+        stage?.off('mousemove', handleMouseMove);
+        image.off('click.text-placement', placeText);
+        setCurrentlyAddingTextNode(false);
+      };
+
+      const placeText = () => {
+        cleanup();
+        image.on('dragmove', setCoordsAndSizeAttrs);
+        // setupTransformer(ETransformerTypes.IMAGE);
+
+        setTemplate((t) => {
+          const node: INode = buildImageNode(image);
+          t.nodes = [...t.nodes, node];
+          return t;
+        });
+      };
+      image.on('click', () => setupTransformer(ETransformerTypes.IMAGE));
+
+      stage?.on('mousemove', handleMouseMove);
+      stage?.on('contextmenu', handleRightMouseClick);
+      image.on('click.text-placement', placeText);
+
+      stage?.batchDraw();
+
+      // layer.draw();
+      // image.on('click', () => selectNode(transformer, image));
     });
+  }
+
+  function shapePlacementHandler(type: TPlaceableNodeTypes, shape: Shape, onShapePlaced?: (shape: Shape) => void) {
+    shape.zIndex(2);
+
+    const mapping = {
+      [ETransformerTypes.TEXT]: ETransformerTypes.TEXT,
+      [ETransformerTypes.IMAGE]: ETransformerTypes.IMAGE,
+    };
+
+    makeTransformable(shape, mapping[type]);
+    makeHoverable(shape, layer, transformer);
+    makeGuidelineable(shape, transformer, layer);
+    makeSnapable(shape, layer);
+
+    const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+      const currentPositionConsideringStageScale = (): IPosition => {
+        const scaleX = stage?.scaleX() || 1;
+        const scaleY = stage?.scaleY() || 1;
+        const x = e.evt.offsetX / scaleX - (stage?.x() || 0) / scaleX;
+        const y = e.evt.offsetY / scaleY - (stage?.y() || 0) / scaleY;
+        return { x, y };
+      };
+
+      const centerCursorOnElement = ({ x, y }: IPosition): IPosition => {
+        return {
+          x: x - shape.width() / 2,
+          y: y - shape.height() / 2,
+        };
+      };
+      const positionWithStageScale = currentPositionConsideringStageScale();
+      const { x, y } = centerCursorOnElement(positionWithStageScale);
+      shape.setAttrs({ x, y });
+      layer.draw();
+      setCoordsAndSizeAttrs(e);
+    };
+
+    const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
+      e.evt.preventDefault();
+      shape.destroy();
+      layer.draw();
+      cleanup();
+    };
+
+    const cleanup = () => {
+      stage?.off('contextmenu', handleRightMouseClick);
+      stage?.off('mousemove', handleMouseMove);
+      shape.off('click.node-placement', placeNode);
+      setCurrentlyAddingTextNode(false);
+    };
+
+    const placeNode = () => {
+      cleanup();
+      shape.on('dragmove', setCoordsAndSizeAttrs);
+
+      onShapePlaced && onShapePlaced(shape);
+    };
+
+    shape.on('click', () => setupTransformer(mapping[type]));
+
+    stage?.on('mousemove', handleMouseMove);
+    stage?.on('contextmenu', handleRightMouseClick);
+    shape.on('click.node-placement', placeNode);
+
+    stage?.batchDraw();
+  }
+
+  const [currentlyAdding, setCurrentlyAdding] = React.useState<TPlaceableNodeTypes | null>();
+
+  async function handlePlaceNode(type: TPlaceableNodeTypes, meta?: IImage) {
+    if (currentlyAdding) return;
+
+    setCurrentlyAdding(type);
+
+    async function buildShape(type: TPlaceableNodeTypes, meta?: IImage): Promise<Shape> {
+      const common = {
+        id: uuid(), // ref: guid
+        name: genTemplateNodeName(type),
+
+        x: 50,
+        y: 60,
+        draggable: true,
+      };
+
+      if (type == ETemplateNodeTypes.TEXT)
+        return new Promise<Text>((resolve) => {
+          resolve(
+            new Konva.Text({
+              ...common,
+
+              text: 'New text ...',
+              fontSize: 20,
+            }),
+          );
+        });
+
+      // if (type == ETemplateNodeTypes.IMAGE)
+      return new Promise<Image>((resolve) => {
+        Konva.Image.fromURL(meta?.src, (image: Image) => {
+          image.setAttrs({ ...common });
+          resolve(image);
+        });
+      });
+    }
+
+    const shape = await buildShape(type, meta);
+    layer.add(shape);
+
+    // const text = new Konva.Text({
+    //   fontSize: 20,
+    //   x: 50,
+    //   y: 60,
+    //   id: uuid(), // ref: guid
+
+    //   text: 'New text ...',
+    //   draggable: true,
+    //   name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
+    // });
+    // layer.add(text);
+    if (type == ETemplateNodeTypes.TEXT) {
+      stage && makeTextEditible(shape as Text, transformer, stage, layer);
+    }
+
+    const templateNodeConverters = {
+      [ETemplateNodeTypes.TEXT]: (shape: Shape) => buildTextNode(shape as Text),
+      [ETemplateNodeTypes.IMAGE]: (shape: Shape) => buildImageNode(shape as Image),
+    };
+
+    const converter = templateNodeConverters[type];
+
+    const onShapePlaced = (shape: Shape) => {
+      setTemplate((t) => {
+        const node: INode = converter(shape); // convertToTemplateNode
+        t.nodes = [...t.nodes, node];
+        return t;
+      });
+      setCurrentlyAdding(null);
+    };
+    shapePlacementHandler(type, shape, onShapePlaced);
   }
 
   return (
@@ -616,11 +853,15 @@ function App(): React.ReactElement {
             <div className="separator" />
 
             <div className="toolbar__group">
-              <div className="tool">
+              <div className={`tool ${currentlyAdding == ETemplateNodeTypes.IMAGE ? 'tool--active' : ''}`}>
                 <ImageIcon />
               </div>
 
-              <div className={`tool ${currentlyAddingTextNode ? 'tool--active' : ''}`} onClick={onClickTextTool}>
+              <div
+                className={`tool ${currentlyAdding == ETemplateNodeTypes.TEXT ? 'tool--active' : ''}`}
+                onClick={() => handlePlaceNode(ETemplateNodeTypes.TEXT)}
+                // onClick={onClickTextTool}
+              >
                 <TextAddIcon />
               </div>
             </div>
@@ -653,7 +894,12 @@ function App(): React.ReactElement {
               <div className={`gallery`}>
                 {images.map((img, idx) => {
                   return (
-                    <div className="gallery__image" key={idx} onClick={() => handleAddImage(img)}>
+                    <div
+                      className="gallery__image"
+                      key={idx}
+                      onClick={() => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)}
+                      // onClick={() => handleAddImage(img)}
+                    >
                       <img src={img.src} alt="" />
                     </div>
                   );
