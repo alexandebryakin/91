@@ -443,87 +443,6 @@ function App(): React.ReactElement {
   const [coords, setCoords] = React.useState({ x: 0, y: 0 });
   const [size, setSize] = React.useState({ width: 0, height: 0 });
 
-  const [currentlyAddingTextNode, setCurrentlyAddingTextNode] = React.useState(false);
-  const onClickTextTool = () => {
-    if (currentlyAddingTextNode) return;
-    else setCurrentlyAddingTextNode(true);
-    // currentlyAddingTextNode = true;
-
-    const text = new Konva.Text({
-      x: 50,
-      y: 60,
-      fontSize: 20,
-      text: 'New text ...',
-      draggable: true,
-      name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-      id: uuid(), // ref: guid
-    });
-    layer.add(text);
-
-    text.zIndex(2);
-
-    makeTransformable(text, ETransformerTypes.TEXT);
-    stage && makeTextEditible(text, transformer, stage, layer);
-    makeHoverable(text, layer, transformer);
-    makeGuidelineable(text, transformer, layer);
-    makeSnapable(text, layer);
-
-    const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
-      const currentPositionConsideringStageScale = (): IPosition => {
-        const scaleX = stage?.scaleX() || 1;
-        const scaleY = stage?.scaleY() || 1;
-        const x = e.evt.offsetX / scaleX - (stage?.x() || 0) / scaleX;
-        const y = e.evt.offsetY / scaleY - (stage?.y() || 0) / scaleY;
-        return { x, y };
-      };
-
-      const centerCursorOnElement = ({ x, y }: IPosition): IPosition => {
-        return {
-          x: x - text.width() / 2,
-          y: y - text.height() / 2,
-        };
-      };
-      const positionWithStageScale = currentPositionConsideringStageScale();
-      const { x, y } = centerCursorOnElement(positionWithStageScale);
-      text.setAttrs({ x, y });
-      layer.draw();
-      setCoordsAndSizeAttrs(e);
-    };
-
-    const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
-      e.evt.preventDefault();
-      text.destroy();
-      layer.draw();
-      cleanup();
-    };
-
-    const cleanup = () => {
-      stage?.off('contextmenu', handleRightMouseClick);
-      stage?.off('mousemove', handleMouseMove);
-      text.off('click.text-placement', placeText);
-      setCurrentlyAddingTextNode(false);
-    };
-
-    const placeText = () => {
-      cleanup();
-      text.on('dragmove', setCoordsAndSizeAttrs);
-
-      setTemplate((t) => {
-        const node: INode = buildTextNode(text);
-        t.nodes = [...t.nodes, node];
-        return t;
-      });
-    };
-
-    text.on('click', () => setupTransformer(ETransformerTypes.TEXT));
-
-    stage?.on('mousemove', handleMouseMove);
-    stage?.on('contextmenu', handleRightMouseClick);
-    text.on('click.text-placement', placeText);
-
-    stage?.batchDraw();
-  };
-
   const handlePinCoords = () => {
     const nodes = transformer.nodes() || [];
     if (nodes.length == 0) return;
@@ -580,83 +499,12 @@ function App(): React.ReactElement {
     layer.draw();
   }
 
-  function handleAddImage(img: IImage) {
-    Konva.Image.fromURL(img.src, (image: Image) => {
-      image.setAttrs({
-        x: 200,
-        y: 50,
-        draggable: true,
-        id: uuid(),
-      });
-      layer.add(image);
-
-      makeTransformable(image, ETransformerTypes.IMAGE);
-      makeHoverable(image, layer, transformer);
-      makeGuidelineable(image, transformer, layer);
-      makeSnapable(image, layer);
-      image.on('click dragmove', setCoordsAndSizeAttrs);
-
-      const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
-        const currentPositionConsideringStageScale = (): IPosition => {
-          const scaleX = stage?.scaleX() || 1;
-          const scaleY = stage?.scaleY() || 1;
-          const x = e.evt.offsetX / scaleX - (stage?.x() || 0) / scaleX;
-          const y = e.evt.offsetY / scaleY - (stage?.y() || 0) / scaleY;
-          return { x, y };
-        };
-
-        const centerCursorOnElement = ({ x, y }: IPosition): IPosition => {
-          return {
-            x: x - image.width() / 2,
-            y: y - image.height() / 2,
-          };
-        };
-        const positionWithStageScale = currentPositionConsideringStageScale();
-        const { x, y } = centerCursorOnElement(positionWithStageScale);
-        image.setAttrs({ x, y });
-        layer.draw();
-        setCoordsAndSizeAttrs(e);
-      };
-
-      const handleRightMouseClick = (e: KonvaEventObject<MouseEvent>) => {
-        e.evt.preventDefault();
-        image.destroy();
-        layer.draw();
-        cleanup();
-      };
-
-      const cleanup = () => {
-        stage?.off('contextmenu', handleRightMouseClick);
-        stage?.off('mousemove', handleMouseMove);
-        image.off('click.text-placement', placeText);
-        setCurrentlyAddingTextNode(false);
-      };
-
-      const placeText = () => {
-        cleanup();
-        image.on('dragmove', setCoordsAndSizeAttrs);
-        // setupTransformer(ETransformerTypes.IMAGE);
-
-        setTemplate((t) => {
-          const node: INode = buildImageNode(image);
-          t.nodes = [...t.nodes, node];
-          return t;
-        });
-      };
-      image.on('click', () => setupTransformer(ETransformerTypes.IMAGE));
-
-      stage?.on('mousemove', handleMouseMove);
-      stage?.on('contextmenu', handleRightMouseClick);
-      image.on('click.text-placement', placeText);
-
-      stage?.batchDraw();
-
-      // layer.draw();
-      // image.on('click', () => selectNode(transformer, image));
-    });
-  }
-
-  function shapePlacementHandler(type: TPlaceableNodeTypes, shape: Shape, onShapePlaced?: (shape: Shape) => void) {
+  function shapePlacementHandler(
+    type: TPlaceableNodeTypes,
+    shape: Shape,
+    onShapePlaced?: (shape: Shape) => void,
+    onDiscard?: () => void,
+  ) {
     shape.zIndex(2);
 
     const mapping = {
@@ -696,13 +544,13 @@ function App(): React.ReactElement {
       shape.destroy();
       layer.draw();
       cleanup();
+      onDiscard && onDiscard();
     };
 
     const cleanup = () => {
       stage?.off('contextmenu', handleRightMouseClick);
       stage?.off('mousemove', handleMouseMove);
       shape.off('click.node-placement', placeNode);
-      setCurrentlyAddingTextNode(false);
     };
 
     const placeNode = () => {
@@ -762,17 +610,6 @@ function App(): React.ReactElement {
     const shape = await buildShape(type, meta);
     layer.add(shape);
 
-    // const text = new Konva.Text({
-    //   fontSize: 20,
-    //   x: 50,
-    //   y: 60,
-    //   id: uuid(), // ref: guid
-
-    //   text: 'New text ...',
-    //   draggable: true,
-    //   name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-    // });
-    // layer.add(text);
     if (type == ETemplateNodeTypes.TEXT) {
       stage && makeTextEditible(shape as Text, transformer, stage, layer);
     }
@@ -792,7 +629,10 @@ function App(): React.ReactElement {
       });
       setCurrentlyAdding(null);
     };
-    shapePlacementHandler(type, shape, onShapePlaced);
+    const onDiscard = () => {
+      setCurrentlyAdding(null);
+    };
+    shapePlacementHandler(type, shape, onShapePlaced, onDiscard);
   }
 
   return (
@@ -806,6 +646,13 @@ function App(): React.ReactElement {
             onRowClick={(node: INode) => {
               const n = findTemplateNodeByGuid(node.guid);
               if (!n) console.warn('Node not found. INode:', node);
+
+              const map = {
+                text: ETransformerTypes.TEXT,
+                image: ETransformerTypes.IMAGE,
+              };
+              const type = map[node.meta.type];
+              const transformer = setupTransformer(type);
 
               n && transformer.nodes([n]);
             }}

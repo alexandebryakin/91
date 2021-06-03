@@ -39,38 +39,68 @@ type TLineMap = {
   [key in TSector]: ILineCoords;
 };
 
+function buildGuideline(layer: Layer): Line {
+  const line = new Konva.Line({
+    points: [],
+    stroke: colors['--helpernode'],
+    strokeWidth: 1,
+    name: EHelpernode.GUIDELINE,
+  });
+  line.hide();
+  layer.add(line);
+  return line;
+}
+
+const initialCornerRadius = 5;
+const initialFontSize = 12;
+function buildLabel(layer: Layer): Label {
+  const tag = new Konva.Tag({
+    fill: colors['--helpernode'],
+    cornerRadius: initialCornerRadius,
+    name: EHelpernode.GUIDELINE_LABEL_TAG,
+  });
+  const text = new Konva.Text({
+    fontSize: initialFontSize,
+    padding: 3,
+    fill: '#fff',
+    name: EHelpernode.GUIDELINE_LABEL_TEXT,
+  });
+  const label = new Konva.Label({ name: EHelpernode.GUIDELINE_LABEL });
+  label.add(tag);
+  label.add(text);
+  label.hide();
+
+  layer.add(label);
+  return label;
+}
+
+const lines: Line[] = [];
+function getRedlineInstances(layer: Layer): Line[] {
+  if (lines.length > 0) return lines;
+
+  lines.push(buildGuideline(layer));
+  lines.push(buildGuideline(layer));
+  lines.push(buildGuideline(layer));
+  lines.push(buildGuideline(layer));
+
+  return lines;
+}
+
+const labels: Label[] = [];
+function getLabelInstances(layer: Layer): Label[] {
+  if (labels.length > 0) return labels;
+
+  labels.push(buildLabel(layer));
+  labels.push(buildLabel(layer));
+  labels.push(buildLabel(layer));
+  labels.push(buildLabel(layer));
+
+  return labels;
+}
+
 function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer): void {
-  const generateGuideline = (): Line => {
-    const line = new Konva.Line({
-      points: [],
-      stroke: colors['--helpernode'],
-      strokeWidth: 1,
-      name: EHelpernode.COMMON,
-    });
-    line.hide();
-    layer.add(line);
-    return line;
-  };
-  const redLine1 = generateGuideline();
-  const redLine2 = generateGuideline();
-  const redLine3 = generateGuideline();
-  const redLine4 = generateGuideline();
-
-  const generateLabel = (): Label => {
-    const tag = new Konva.Tag({ fill: colors['--helpernode'], cornerRadius: 5, name: EHelpernode.COMMON });
-    const text = new Konva.Text({ fontSize: 12, padding: 3, fill: '#fff', name: EHelpernode.COMMON });
-    const label = new Konva.Label({ name: EHelpernode.COMMON });
-    label.add(tag);
-    label.add(text);
-    label.hide();
-
-    layer.add(label);
-    return label;
-  };
-  const label1 = generateLabel();
-  const label2 = generateLabel();
-  const label3 = generateLabel();
-  const label4 = generateLabel();
+  const [redLine1, redLine2, redLine3, redLine4] = getRedlineInstances(layer);
+  const [label1, label2, label3, label4] = getLabelInstances(layer);
 
   const buildObject = (node: Node): IFigure => {
     return {
@@ -225,15 +255,39 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
     };
   }
 
-  shape.on('mouseover dragmove', (e) => {
+  function redrawGuidelines(e: KonvaEventObject<any>) {
     const selectedNode = transformer.nodes()[0];
     if (!selectedNode || selectedNode === shape) return;
     const target = buildObject(e.target);
     const selected = buildObject(selectedNode);
+
     drawGuideline(e, redLine1, label1, buildBottomGuidelineMap(target, selected));
     drawGuideline(e, redLine2, label2, buildTopGuidelineMap(target, selected));
     drawGuideline(e, redLine3, label3, buildLeftGuidelineMap(target, selected));
     drawGuideline(e, redLine4, label4, buildRightGuidelineMap(target, selected));
+  }
+
+  shape.on('mouseover dragmove', (e) => redrawGuidelines(e));
+
+  const stage = layer.getStage();
+
+  function redefineSizes() {
+    const scale = stage.scale();
+
+    const redefineSize = (label: Label) => {
+      const tag = label.findOne(`.${EHelpernode.GUIDELINE_LABEL_TAG}`);
+      tag.setAttrs({ cornerRadius: initialCornerRadius / scale.x });
+
+      const text = label.findOne(`.${EHelpernode.GUIDELINE_LABEL_TEXT}`);
+      text.setAttrs({ fontSize: (initialCornerRadius / scale.x) * 2 });
+    };
+
+    [label1, label1, label3, label4].forEach(redefineSize);
+  }
+
+  stage.on('wheel', (e) => {
+    redefineSizes();
+    redrawGuidelines(e);
   });
 
   shape.on('mouseout', () => {
