@@ -1,0 +1,46 @@
+@import 'styles/variables';
+@import 'styles/mixins';
+
+.toolbar {
+  $--toolbar-width: 60px;
+  $--toolbar-padding: 10px;
+  min-width: $--toolbar-width;
+  max-width: $--toolbar-width;
+
+  border-left: 1px solid $--border-color;
+
+  &__group {
+    flex-direction: column;
+    align-items: center;
+    padding: $--toolbar-padding;
+  }
+
+  // flex-grow: 1;
+
+  .tool {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    width: 40px;
+    height: 40px;
+
+    border-radius: $--border-radius;
+
+    @include make-hoverable;
+
+    margin-top: calc(#{$--toolbar-padding}/ 2);
+    margin-bottom: calc(#{$--toolbar-padding}/ 2);
+    cursor: pointer;
+    user-select: none;
+
+    &--active {
+      background-color: $--color-bg-hovered;
+      border: 1px solid $--border-color;
+    }
+
+    &--disabled {
+      opacity: 0.3;
+    }
+  }
+}

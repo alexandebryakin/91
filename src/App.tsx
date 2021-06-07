@@ -31,6 +31,7 @@ import colors from './ui/colors';
 import makeGuidelineable from './ui/modifiers/makeGuidelineable';
 import makeHoverable from './ui/modifiers/makeHoverable';
 import { Rect } from 'konva/types/shapes/Rect';
+import Toolbar from './ui/components/Toolbar';
 
 interface ISideBar {
   template: ITemplate;
@@ -239,7 +240,7 @@ function setupTransformer(type: ETransformerTypes = ETransformerTypes.TEXT): Tra
       },
     } as TransformerConfig,
   };
-  console.log('🚀 ~ file: type', type);
+  // console.log('🚀 ~ file: type', type);
 
   transformer.setAttrs(configs[type]);
   transformer.moveToTop();
@@ -275,7 +276,7 @@ function factory(type: EFactoryTypes) {
 }
 
 function makeTransformable(shape: Shape, type: ETransformerTypes) {
-  console.log('type -> ', type);
+  // console.log('type -> ', type);
   const MIN_WIDTH = 20;
   const handlers = {
     [ETransformerTypes.IMAGE]: (node: Node) => ({
@@ -314,6 +315,7 @@ function loadTemplate(
   transformer: Transformer,
   layer: Layer,
   stage: Stage,
+  History: ILayerHistory,
   setCoordsAndSizeAttrs: (e: KonvaEventObject<MouseEvent>) => void,
 ) {
   const templateRect = buildTemplateRect();
@@ -357,6 +359,8 @@ function loadTemplate(
 
     const shape = build(node);
     shape && layer.add(shape);
+    shape && History.rememberDragEnd(shape);
+    shape && History.rememberTransform(transformer);
   });
 
   layer.draw();
@@ -376,7 +380,7 @@ function App(): React.ReactElement {
     setCoords({ x: e.target.x(), y: e.target.y() });
     setSize({ width: e.target.width(), height: e.target.height() });
   };
-
+  const History = useLayerHistory(layer);
   React.useEffect(() => {
     const width = konvaStageRef.current?.offsetWidth;
     const height = konvaStageRef.current?.offsetHeight;
@@ -392,13 +396,14 @@ function App(): React.ReactElement {
 
     stage.add(layer);
     layer.add(transformer);
+    // History.initialize(layer);
 
     // const transformer = buildTransformer(ETransformerTypes.TEXT);
     transformer.on('transform dragmove', setCoordsAndSizeAttrs);
 
     stage.on('click', setCoordsAndSizeAttrs);
 
-    loadTemplate(loadedTemplate, transformer, layer, stage, setCoordsAndSizeAttrs);
+    loadTemplate(loadedTemplate, transformer, layer, stage, History, setCoordsAndSizeAttrs);
 
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
       const nodes = e.target === stage ? [] : [e.target];
@@ -556,6 +561,10 @@ function App(): React.ReactElement {
     const placeNode = () => {
       cleanup();
       shape.on('dragmove', setCoordsAndSizeAttrs);
+      History.rememberDragEnd(shape);
+      History.rememberTransform(transformer);
+
+      History.add(shape);
 
       onShapePlaced && onShapePlaced(shape);
     };
@@ -592,6 +601,8 @@ function App(): React.ReactElement {
             new Konva.Text({
               ...common,
 
+              width: 100,
+              height: 20,
               text: 'New text ...',
               fontSize: 20,
             }),
@@ -670,51 +681,48 @@ function App(): React.ReactElement {
             <div id={konvaStageContainer} ref={konvaStageRef}></div>
           </div>
 
-          <div className="toolbar">
-            <div className="toolbar__group">
-              <div className="tool">
+          <Toolbar.Panel>
+            <Toolbar.Group>
+              <Toolbar.Tool>
                 <SaveIcon />
-              </div>
+              </Toolbar.Tool>
 
-              <div className="tool">
-                <CopyIcon />
-              </div>
-
-              <div className="tool">
+              <Toolbar.Tool disabled={!History.isUndoable} onClick={History.undo}>
                 <UndoIcon />
-              </div>
+              </Toolbar.Tool>
 
-              <div className="tool">
+              <Toolbar.Tool disabled={!History.isRedoable} onClick={History.redo}>
                 <RedoIcon />
-              </div>
-            </div>
+              </Toolbar.Tool>
 
-            <div className="separator" />
+              <Toolbar.Tool>
+                <CopyIcon />
+              </Toolbar.Tool>
+            </Toolbar.Group>
 
-            <div className="toolbar__group">
-              <div className="tool" onClick={handleRemoveNodes}>
+            <Toolbar.Separator />
+
+            <Toolbar.Group>
+              <Toolbar.Tool onClick={handleRemoveNodes}>
                 <ButtonRemove />
-              </div>
-            </div>
+              </Toolbar.Tool>
+            </Toolbar.Group>
 
-            <div className="separator" />
+            <Toolbar.Separator />
 
-            <div className="toolbar__group">
-              <div className={`tool ${currentlyAdding == ETemplateNodeTypes.IMAGE ? 'tool--active' : ''}`}>
+            <Toolbar.Group>
+              <Toolbar.Tool active={currentlyAdding == ETemplateNodeTypes.IMAGE}>
                 <ImageIcon />
-              </div>
+              </Toolbar.Tool>
 
-              <div
-                className={`tool ${currentlyAdding == ETemplateNodeTypes.TEXT ? 'tool--active' : ''}`}
+              <Toolbar.Tool
+                active={currentlyAdding == ETemplateNodeTypes.TEXT}
                 onClick={() => handlePlaceNode(ETemplateNodeTypes.TEXT)}
-                // onClick={onClickTextTool}
               >
                 <TextAddIcon />
-              </div>
-            </div>
-
-            <div className="separator" />
-          </div>
+              </Toolbar.Tool>
+            </Toolbar.Group>
+          </Toolbar.Panel>
 
           <div className="builder-controls">
             <div className="controls-section">
@@ -745,7 +753,6 @@ function App(): React.ReactElement {
                       className="gallery__image"
                       key={idx}
                       onClick={() => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)}
-                      // onClick={() => handleAddImage(img)}
                     >
                       <img src={img.src} alt="" />
                     </div>
@@ -803,3 +810,161 @@ const images: IImage[] = [
     src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
   },
 ];
+
+interface IHistoryState {
+  target: Node;
+  attrs: Record<string, unknown>;
+}
+let history: IHistoryState[] = [];
+let current = -1;
+
+function add(node: Node) {
+  current += 1;
+  history = history.slice(0, current);
+  history.push(_buildState(node));
+
+  _fire(EHistoryEventType.ADD);
+}
+
+function cloneShallow(obj: Record<string, unknown>): Record<string, unknown> {
+  return { ...obj };
+}
+
+const undoable = (): boolean => current >= 0;
+const redoable = () => current + 1 < history.length;
+
+function redo() {
+  if (!redoable()) return;
+
+  current += 1;
+  const state = history[current];
+  history[current] = _buildState(state.target);
+  state.target.setAttrs(state.attrs);
+
+  _fire(EHistoryEventType.REDO);
+}
+function undo() {
+  if (!undoable()) return;
+
+  const state = history[current];
+  history[current] = _buildState(state.target);
+  state.target.setAttrs(state.attrs);
+  current -= 1;
+
+  _fire(EHistoryEventType.UNDO);
+}
+function _buildState(node: Node): IHistoryState {
+  // const cloneDeep = (node: Node) => node.clone().getAttrs();
+  return {
+    target: node,
+    attrs: cloneShallow(node.getAttrs()),
+    // attrs: cloneDeep(node),
+  };
+}
+
+enum EHistoryEventType {
+  UNDO = 'UNDO',
+  REDO = 'REDO',
+  ADD = 'ADD',
+
+  CHANGE = 'CHANGE',
+}
+const events = {
+  [EHistoryEventType.UNDO]: {
+    callbacks: [] as THistoryCallback[],
+  },
+
+  [EHistoryEventType.REDO]: {
+    callbacks: [] as THistoryCallback[],
+  },
+
+  [EHistoryEventType.ADD]: {
+    callbacks: [] as THistoryCallback[],
+  },
+
+  [EHistoryEventType.CHANGE]: {
+    callbacks: [] as THistoryCallback[],
+  },
+};
+type THistoryCallback = () => void;
+function on(type: EHistoryEventType, callback: THistoryCallback) {
+  const event = events[type];
+
+  const cb = event.callbacks.find((cb) => cb.toString() == callback.toString());
+
+  if (!cb) event.callbacks.push(callback);
+}
+
+function _redrawLayer() {
+  _layer?.draw();
+}
+
+function _fire(type: EHistoryEventType) {
+  const run = (callback: THistoryCallback) => callback();
+  events[type].callbacks.forEach(run);
+  events[EHistoryEventType.CHANGE].callbacks.forEach(run);
+
+  _redrawLayer();
+}
+
+let _layer: Layer;
+function initialize(layer: Layer) {
+  _layer = layer;
+}
+
+const History = {
+  initialize,
+
+  add,
+  undo,
+  redo,
+  undoable,
+  redoable,
+
+  on,
+
+  rememberDragEnd,
+  rememberTransform,
+};
+
+function rememberDragEnd(node: Node) {
+  node.on('dragstart', () => add(node));
+}
+
+function rememberTransform(transformer: Transformer) {
+  transformer.on('transformstart', (e) => add(e.target));
+}
+
+interface ILayerHistory {
+  add: (node: Node) => void;
+  undo: () => void;
+  redo: () => void;
+  undoable: () => boolean;
+  redoable: () => boolean;
+
+  on: (type: EHistoryEventType, callback: THistoryCallback) => void;
+
+  rememberDragEnd: (node: Node) => void;
+  rememberTransform: (transformer: Transformer) => void;
+}
+
+interface IUseLayerHistory extends ILayerHistory {
+  isUndoable: boolean;
+  isRedoable: boolean;
+}
+function useLayerHistory(layer: Layer): IUseLayerHistory {
+  const [isUndoable, setUndoable] = React.useState(false);
+  const [isRedoable, setRedoable] = React.useState(false);
+
+  History.initialize(layer);
+
+  const reassign = () => {
+    setUndoable(() => History.undoable());
+    setRedoable(() => History.redoable());
+  };
+  React.useEffect(() => {
+    History.on(EHistoryEventType.CHANGE, () => reassign());
+  }, []);
+
+  return { ...History, isUndoable, isRedoable };
+}
