@@ -276,13 +276,13 @@ function makeGuidelineable(shape: Shape, transformer: Transformer, layer: Layer)
 
     const redefineSize = (label: Label) => {
       const tag = label.findOne(`.${EHelpernode.GUIDELINE_LABEL_TAG}`);
-      tag.setAttrs({ cornerRadius: initialCornerRadius / scale.x });
+      tag.setAttrs({ cornerRadius: (initialCornerRadius / scale.x) * 0.7 });
 
       const text = label.findOne(`.${EHelpernode.GUIDELINE_LABEL_TEXT}`);
       text.setAttrs({ fontSize: (initialCornerRadius / scale.x) * 2 });
     };
 
-    [label1, label1, label3, label4].forEach(redefineSize);
+    [label1, label2, label3, label4].forEach(redefineSize);
   }
 
   stage.on('wheel', (e) => {
