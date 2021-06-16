@@ -32,6 +32,8 @@ import makeGuidelineable from './ui/modifiers/makeGuidelineable';
 import makeHoverable from './ui/modifiers/makeHoverable';
 import { Rect } from 'konva/types/shapes/Rect';
 import Toolbar from './ui/components/Toolbar';
+import { EAddittionType, IHistoryState, ILayerHistory } from './ui/history/history';
+import useLayerHistory from './ui/history/useLayerHistory';
 
 interface ISideBar {
   template: ITemplate;
@@ -75,9 +77,13 @@ function selectNode(transformer: Transformer, node: Node) {
   // transformer.setAttrs({enabledAnchors: []})
 }
 
+interface ITemplateTrash {
+  nodes: INode[];
+}
 interface ITemplate {
   size: ISize;
   nodes: INode[];
+  trash: ITemplateTrash;
 }
 // const defaultTemplate: ITemplate = {
 //   size: { width: 720, height: 1080 } as ISize,
@@ -110,6 +116,9 @@ const loadedTemplate: ITemplate = {
       },
     } as INodeText,
   ],
+  trash: {
+    nodes: [],
+  },
 };
 interface INode {
   guid: string;
@@ -382,6 +391,49 @@ function App(): React.ReactElement {
   };
   const History = useLayerHistory(layer);
   React.useEffect(() => {
+    const stateSwapper = (state: IHistoryState): IHistoryState => {
+      const swapType = (type: EAddittionType): EAddittionType => {
+        if (type == EAddittionType.CREATE) return EAddittionType.DELETE;
+        if (type == EAddittionType.DELETE) return EAddittionType.CREATE;
+
+        return type;
+      };
+
+      const buildState = (target: Node): IHistoryState => {
+        return {
+          ...state,
+          attrs: { ...state.attrs, visible: target.visible() },
+          type: swapType(type),
+          target,
+        };
+      };
+
+      const { type, target } = state;
+      if (type == EAddittionType.CREATE) {
+        // since the previous state was the creation, we need to hide current
+        // target on undo and mark current addition type as DELETE so that further redo
+        // could revert the state
+        target.hide();
+        removeNodeFromTemplate(target);
+        return buildState(target);
+      }
+
+      if (type == EAddittionType.DELETE) {
+        // since the previous state was the deletion, we need to show current
+        // target on undo and mark current addition type as CREATE so that further redo
+        // could revert the state
+        target.show();
+        restoreNodeForTemplate(target);
+        return buildState(target);
+      }
+
+      return state;
+    };
+    History.swappers.undo = stateSwapper;
+    History.swappers.redo = stateSwapper;
+  }, []);
+
+  React.useEffect(() => {
     const width = konvaStageRef.current?.offsetWidth;
     const height = konvaStageRef.current?.offsetHeight;
     const stage = new Konva.Stage({
@@ -564,7 +616,7 @@ function App(): React.ReactElement {
       History.rememberDragEnd(shape);
       History.rememberTransform(transformer);
 
-      History.add(shape);
+      History.add(shape, EAddittionType.CREATE);
 
       onShapePlaced && onShapePlaced(shape);
     };
@@ -645,6 +697,39 @@ function App(): React.ReactElement {
     };
     shapePlacementHandler(type, shape, onShapePlaced, onDiscard);
   }
+
+  function removeNodeFromTemplate(node: Node) {
+    const guid = node.id();
+    setTemplate((t) => {
+      const nodes = [...t.nodes.filter((n) => n.guid != guid)];
+      const trashNode = t.nodes.find((n) => n.guid == guid);
+      const trashNodes = trashNode ? [...t.trash.nodes, trashNode] : t.trash.nodes;
+      const trash = { ...t.trash, nodes: trashNodes };
+
+      return { ...t, nodes, trash };
+    });
+  }
+
+  function restoreNodeForTemplate(node: Node) {
+    const guid = node.id();
+
+    setTemplate((t) => {
+      const trashNode = t.trash.nodes.find((n) => n.guid == guid);
+      const nodes = trashNode ? [...t.nodes, trashNode] : t.nodes;
+      const trashNodes = [...t.trash.nodes.filter((n) => n.guid != guid)];
+      const trash = { ...t.trash, nodes: trashNodes };
+
+      return { ...t, nodes, trash };
+    });
+  }
+
+  // const Template = {
+  //   load: (templateSchema),
+  //   add: (node: Node),
+  //   restore(guid: string),
+  //   remove(guid: string),
+  //   destroy(node: Node),
+  // }
 
   return (
     <>
@@ -810,161 +895,3 @@ const images: IImage[] = [
     src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
   },
 ];
-
-interface IHistoryState {
-  target: Node;
-  attrs: Record<string, unknown>;
-}
-let history: IHistoryState[] = [];
-let current = -1;
-
-function add(node: Node) {
-  current += 1;
-  history = history.slice(0, current);
-  history.push(_buildState(node));
-
-  _fire(EHistoryEventType.ADD);
-}
-
-function cloneShallow(obj: Record<string, unknown>): Record<string, unknown> {
-  return { ...obj };
-}
-
-const undoable = (): boolean => current >= 0;
-const redoable = () => current + 1 < history.length;
-
-function redo() {
-  if (!redoable()) return;
-
-  current += 1;
-  const state = history[current];
-  history[current] = _buildState(state.target);
-  state.target.setAttrs(state.attrs);
-
-  _fire(EHistoryEventType.REDO);
-}
-function undo() {
-  if (!undoable()) return;
-
-  const state = history[current];
-  history[current] = _buildState(state.target);
-  state.target.setAttrs(state.attrs);
-  current -= 1;
-
-  _fire(EHistoryEventType.UNDO);
-}
-function _buildState(node: Node): IHistoryState {
-  // const cloneDeep = (node: Node) => node.clone().getAttrs();
-  return {
-    target: node,
-    attrs: cloneShallow(node.getAttrs()),
-    // attrs: cloneDeep(node),
-  };
-}
-
-enum EHistoryEventType {
-  UNDO = 'UNDO',
-  REDO = 'REDO',
-  ADD = 'ADD',
-
-  CHANGE = 'CHANGE',
-}
-const events = {
-  [EHistoryEventType.UNDO]: {
-    callbacks: [] as THistoryCallback[],
-  },
-
-  [EHistoryEventType.REDO]: {
-    callbacks: [] as THistoryCallback[],
-  },
-
-  [EHistoryEventType.ADD]: {
-    callbacks: [] as THistoryCallback[],
-  },
-
-  [EHistoryEventType.CHANGE]: {
-    callbacks: [] as THistoryCallback[],
-  },
-};
-type THistoryCallback = () => void;
-function on(type: EHistoryEventType, callback: THistoryCallback) {
-  const event = events[type];
-
-  const cb = event.callbacks.find((cb) => cb.toString() == callback.toString());
-
-  if (!cb) event.callbacks.push(callback);
-}
-
-function _redrawLayer() {
-  _layer?.draw();
-}
-
-function _fire(type: EHistoryEventType) {
-  const run = (callback: THistoryCallback) => callback();
-  events[type].callbacks.forEach(run);
-  events[EHistoryEventType.CHANGE].callbacks.forEach(run);
-
-  _redrawLayer();
-}
-
-let _layer: Layer;
-function initialize(layer: Layer) {
-  _layer = layer;
-}
-
-const History = {
-  initialize,
-
-  add,
-  undo,
-  redo,
-  undoable,
-  redoable,
-
-  on,
-
-  rememberDragEnd,
-  rememberTransform,
-};
-
-function rememberDragEnd(node: Node) {
-  node.on('dragstart', () => add(node));
-}
-
-function rememberTransform(transformer: Transformer) {
-  transformer.on('transformstart', (e) => add(e.target));
-}
-
-interface ILayerHistory {
-  add: (node: Node) => void;
-  undo: () => void;
-  redo: () => void;
-  undoable: () => boolean;
-  redoable: () => boolean;
-
-  on: (type: EHistoryEventType, callback: THistoryCallback) => void;
-
-  rememberDragEnd: (node: Node) => void;
-  rememberTransform: (transformer: Transformer) => void;
-}
-
-interface IUseLayerHistory extends ILayerHistory {
-  isUndoable: boolean;
-  isRedoable: boolean;
-}
-function useLayerHistory(layer: Layer): IUseLayerHistory {
-  const [isUndoable, setUndoable] = React.useState(false);
-  const [isRedoable, setRedoable] = React.useState(false);
-
-  History.initialize(layer);
-
-  const reassign = () => {
-    setUndoable(() => History.undoable());
-    setRedoable(() => History.redoable());
-  };
-  React.useEffect(() => {
-    History.on(EHistoryEventType.CHANGE, () => reassign());
-  }, []);
-
-  return { ...History, isUndoable, isRedoable };
-}
