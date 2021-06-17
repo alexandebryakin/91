@@ -525,14 +525,13 @@ function App(): React.ReactElement {
   function handleRemoveNodes() {
     const nodes = transformer.nodes().filter(destructibleNodes).filter(utils.isNotHelpernode) || [];
 
-    const destroyTemplateNode = (node: Node) => {
-      const nodes = template.nodes.filter((n) => n.guid != node.id());
-
-      setTemplate((t) => ({ ...t, nodes: [...nodes] }));
+    const removeTemplateNode = (node: Node) => {
+      node.hide();
+      removeNodeFromTemplate(node);
+      History.add(node, EAddittionType.DELETE);
     };
 
-    nodes.forEach(destroyTemplateNode);
-    nodes.forEach((node: Node) => node.destroy());
+    nodes.forEach(removeTemplateNode);
     transformer.nodes([]);
     layer.batchDraw();
   }
