@@ -1,6 +1,5 @@
 import Konva from 'konva';
 import { v4 as uuid } from 'uuid';
-import { Layer } from 'konva/types/Layer';
 import { Box, TransformerConfig } from 'konva/types/shapes/Transformer';
 import { Transformer } from 'konva/types/shapes/Transformer';
 import { Text } from 'konva/types/shapes/Text';
@@ -32,8 +31,18 @@ import makeGuidelineable from './ui/modifiers/makeGuidelineable';
 import makeHoverable from './ui/modifiers/makeHoverable';
 import { Rect } from 'konva/types/shapes/Rect';
 import Toolbar from './ui/components/Toolbar';
-import { EAddittionType, IHistoryState, ILayerHistory } from './ui/history/history';
+import { EAddittionType, IHistoryState } from './ui/history/history';
 import useLayerHistory from './ui/history/useLayerHistory';
+import Template, {
+  ETemplateNodeTypes,
+  INode,
+  INodeText,
+  IPosition,
+  ISize,
+  ITemplate,
+  TPlaceableNodeTypes,
+} from './ui/template/template';
+import makeTransformable from './ui/modifiers/makeTransformable';
 
 interface ISideBar {
   template: ITemplate;
@@ -72,23 +81,7 @@ function SideBar(props: ISideBar): React.ReactElement {
     </div>
   );
 }
-function selectNode(transformer: Transformer, node: Node) {
-  transformer.nodes([node]);
-  // transformer.setAttrs({enabledAnchors: []})
-}
 
-interface ITemplateTrash {
-  nodes: INode[];
-}
-interface ITemplate {
-  size: ISize;
-  nodes: INode[];
-  trash: ITemplateTrash;
-}
-// const defaultTemplate: ITemplate = {
-//   size: { width: 720, height: 1080 } as ISize,
-//   nodes: [],
-// };
 const loadedTemplate: ITemplate = {
   size: { width: 720, height: 1080 } as ISize,
   nodes: [
@@ -120,84 +113,6 @@ const loadedTemplate: ITemplate = {
     nodes: [],
   },
 };
-interface INode {
-  guid: string;
-  position: IPosition;
-  size: ISize;
-  draggable: boolean;
-  meta: TMeta;
-}
-type TMeta = TNoMeta | IMetaText | IMetaImage;
-// type TMetaType = 'text' | 'image' | 'table?';
-type TNoMeta = Record<string, never>;
-interface IMetaText {
-  type: 'text';
-  fontSize: number;
-  content: string;
-  // ...
-}
-interface INodeText extends INode {
-  meta: IMetaText;
-}
-const buildTextNode = (text: Text): INodeText => {
-  return {
-    guid: text.id(),
-    size: { width: text.textWidth, height: text.textHeight },
-    position: { x: text.x(), y: text.y() },
-    draggable: text.draggable(),
-    meta: {
-      type: 'text',
-      content: text.text(),
-    } as IMetaText,
-  };
-};
-function buildImageNode(image: Image) {
-  return {
-    guid: image.id(),
-    size: { width: image.width(), height: image.height() },
-    position: { x: image.x(), y: image.y() },
-    draggable: image.draggable(),
-    meta: {
-      type: 'image',
-    } as IMetaImage,
-  };
-}
-interface IMetaImage {
-  type: 'image';
-  src: string;
-  alt: string;
-  // ...
-}
-interface ISize {
-  width: number;
-  height: number;
-}
-interface IPosition {
-  x: number;
-  y: number;
-}
-// <<<<<
-// <<<<<
-// <<<<<
-// <<<<<
-
-enum ETemplateNodeTypes {
-  TEXT = 'TEXT',
-  IMAGE = 'IMAGE',
-  TEMPLATE_RECT = 'TEMPLATE_RECT',
-}
-type TPlaceableNodeTypes = ETemplateNodeTypes.TEXT | ETemplateNodeTypes.IMAGE;
-
-const genTemplateNodeName = (type: ETemplateNodeTypes) => `template-node ${type}`;
-
-const indestructibleNodeNames = [ETemplateNodeTypes.TEMPLATE_RECT];
-const destructibleNodes = (node: Node) => !indestructibleNodeNames.some((n) => node.name().includes(n));
-
-// const ZIndexes = {
-//   [ETemplateNodeTypes.TEMPLATE_RECT]: 3,
-//   [ETemplateNodeTypes.TEXT]: 2,
-//   [EHelpernode.COMMON]: 1,
-// };
 
 const styles = {
   anchorStroke: colors['--border-color'],
@@ -209,15 +124,12 @@ const styles = {
   rotateEnabled: false,
 } as TransformerConfig;
 const transformer: Transformer = new Konva.Transformer({ ...styles });
-// transformer.on('transform', (e) => {
-//   e.target
-// });
 
-enum ETransformerTypes {
+export enum ETransformerTypes {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',
 }
-function setupTransformer(type: ETransformerTypes = ETransformerTypes.TEXT): Transformer {
+export function setupTransformer(type: ETransformerTypes = ETransformerTypes.TEXT): Transformer {
   // ['top-left', 'top-center', 'top-right', 'middle-right', 'middle-left', 'bottom-left', 'bottom-center', 'bottom-right']
   const configs = {
     [ETransformerTypes.TEXT]: {
@@ -249,7 +161,6 @@ function setupTransformer(type: ETransformerTypes = ETransformerTypes.TEXT): Tra
       },
     } as TransformerConfig,
   };
-  // console.log('🚀 ~ file: type', type);
 
   transformer.setAttrs(configs[type]);
   transformer.moveToTop();
@@ -273,106 +184,6 @@ const hoveredNode = new Konva.Rect({
 });
 function hoveredOnSidebarRectBuilder(): Rect {
   return hoveredNode;
-}
-
-enum EFactoryTypes {
-  TRANSFORMER = 'TRANSFORMER',
-}
-function factory(type: EFactoryTypes) {
-  if (type == EFactoryTypes.TRANSFORMER) return setupTransformer();
-
-  return setupTransformer();
-}
-
-function makeTransformable(shape: Shape, type: ETransformerTypes) {
-  // console.log('type -> ', type);
-  const MIN_WIDTH = 20;
-  const handlers = {
-    [ETransformerTypes.IMAGE]: (node: Node) => ({
-      width: Math.max(node.width() * node.scaleX(), MIN_WIDTH),
-      height: Math.max(node.height() * node.scaleY(), MIN_WIDTH),
-    }),
-
-    [ETransformerTypes.TEXT]: (node: Node) => ({
-      // with enabled anchors we can only change scaleX
-      // so we don't need to reset height
-      // just width
-      width: Math.max(node.width() * node.scaleX(), MIN_WIDTH),
-      scaleX: 1,
-      scaleY: 1,
-    }),
-  };
-
-  shape.on('transform', (e) => {
-    const handler = handlers[type];
-    shape.setAttrs(handler(e.target));
-  });
-}
-
-const templateRect = new Konva.Rect({
-  x: 20,
-  y: 20,
-  fill: '#fff',
-
-  name: genTemplateNodeName(ETemplateNodeTypes.TEMPLATE_RECT),
-});
-function buildTemplateRect(): Rect {
-  return templateRect;
-}
-function loadTemplate(
-  template: ITemplate,
-  transformer: Transformer,
-  layer: Layer,
-  stage: Stage,
-  History: ILayerHistory,
-  setCoordsAndSizeAttrs: (e: KonvaEventObject<MouseEvent>) => void,
-) {
-  const templateRect = buildTemplateRect();
-  templateRect.setAttrs({ width: template.size.width, height: template.size.height });
-  layer.add(templateRect);
-  layer.draw();
-
-  template.nodes.forEach((node) => {
-    function defineBuilder(node: INode): (node: INode) => Shape | undefined {
-      //
-      function textNodeBuilder(n: INode): Text {
-        const node = n as INodeText;
-        const text = new Konva.Text({
-          x: node.position.x,
-          y: node.position.y,
-          width: node.size.width,
-          height: node.size.height,
-          fontSize: node.meta.fontSize,
-          text: node.meta.content,
-          draggable: node.draggable,
-          name: genTemplateNodeName(ETemplateNodeTypes.TEXT),
-          id: n.guid,
-        });
-
-        makeTransformable(text, ETransformerTypes.TEXT);
-        makeTextEditible(text, transformer, stage, layer);
-        makeHoverable(text, layer, transformer);
-        makeGuidelineable(text, transformer, layer);
-        makeSnapable(text, layer);
-        text.on('click dragmove', setCoordsAndSizeAttrs);
-        text.on('click', () => setupTransformer(ETransformerTypes.TEXT));
-
-        return text;
-      }
-      if (node.meta.type == 'text') return textNodeBuilder;
-
-      console.error('No builder found for node:', node);
-      return () => undefined;
-    }
-    const build = defineBuilder(node);
-
-    const shape = build(node);
-    shape && layer.add(shape);
-    shape && History.rememberDragEnd(shape);
-    shape && History.rememberTransform(transformer);
-  });
-
-  layer.draw();
 }
 
 function App(): React.ReactElement {
@@ -414,7 +225,7 @@ function App(): React.ReactElement {
         // target on undo and mark current addition type as DELETE so that further redo
         // could revert the state
         target.hide();
-        removeNodeFromTemplate(target);
+        setTemplate(() => ({ ...Template.Node.remove(target) }));
         return buildState(target);
       }
 
@@ -423,7 +234,7 @@ function App(): React.ReactElement {
         // target on undo and mark current addition type as CREATE so that further redo
         // could revert the state
         target.show();
-        restoreNodeForTemplate(target);
+        setTemplate(() => Template.Node.restore(target));
         return buildState(target);
       }
 
@@ -448,14 +259,11 @@ function App(): React.ReactElement {
 
     stage.add(layer);
     layer.add(transformer);
-    // History.initialize(layer);
-
-    // const transformer = buildTransformer(ETransformerTypes.TEXT);
     transformer.on('transform dragmove', setCoordsAndSizeAttrs);
 
     stage.on('click', setCoordsAndSizeAttrs);
 
-    loadTemplate(loadedTemplate, transformer, layer, stage, History, setCoordsAndSizeAttrs);
+    Template.load(loadedTemplate, transformer, layer, stage, History, setCoordsAndSizeAttrs);
 
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
       const nodes = e.target === stage ? [] : [e.target];
@@ -523,11 +331,11 @@ function App(): React.ReactElement {
   // console.log('template', template);
 
   function handleRemoveNodes() {
-    const nodes = transformer.nodes().filter(destructibleNodes).filter(utils.isNotHelpernode) || [];
+    const nodes = transformer.nodes().filter(Template.utils.destructibleNodes).filter(utils.isNotHelpernode) || [];
 
     const removeTemplateNode = (node: Node) => {
       node.hide();
-      removeNodeFromTemplate(node);
+      setTemplate(() => ({ ...Template.Node.remove(node) }));
       History.add(node, EAddittionType.DELETE);
     };
 
@@ -639,7 +447,7 @@ function App(): React.ReactElement {
     async function buildShape(type: TPlaceableNodeTypes, meta?: IImage): Promise<Shape> {
       const common = {
         id: uuid(), // ref: guid
-        name: genTemplateNodeName(type),
+        name: Template.genTemplateNodeName(type),
 
         x: 50,
         y: 60,
@@ -676,19 +484,8 @@ function App(): React.ReactElement {
       stage && makeTextEditible(shape as Text, transformer, stage, layer);
     }
 
-    const templateNodeConverters = {
-      [ETemplateNodeTypes.TEXT]: (shape: Shape) => buildTextNode(shape as Text),
-      [ETemplateNodeTypes.IMAGE]: (shape: Shape) => buildImageNode(shape as Image),
-    };
-
-    const converter = templateNodeConverters[type];
-
     const onShapePlaced = (shape: Shape) => {
-      setTemplate((t) => {
-        const node: INode = converter(shape); // convertToTemplateNode
-        t.nodes = [...t.nodes, node];
-        return t;
-      });
+      setTemplate(() => Template.Node.add(shape));
       setCurrentlyAdding(null);
     };
     const onDiscard = () => {
@@ -696,39 +493,6 @@ function App(): React.ReactElement {
     };
     shapePlacementHandler(type, shape, onShapePlaced, onDiscard);
   }
-
-  function removeNodeFromTemplate(node: Node) {
-    const guid = node.id();
-    setTemplate((t) => {
-      const nodes = [...t.nodes.filter((n) => n.guid != guid)];
-      const trashNode = t.nodes.find((n) => n.guid == guid);
-      const trashNodes = trashNode ? [...t.trash.nodes, trashNode] : t.trash.nodes;
-      const trash = { ...t.trash, nodes: trashNodes };
-
-      return { ...t, nodes, trash };
-    });
-  }
-
-  function restoreNodeForTemplate(node: Node) {
-    const guid = node.id();
-
-    setTemplate((t) => {
-      const trashNode = t.trash.nodes.find((n) => n.guid == guid);
-      const nodes = trashNode ? [...t.nodes, trashNode] : t.nodes;
-      const trashNodes = [...t.trash.nodes.filter((n) => n.guid != guid)];
-      const trash = { ...t.trash, nodes: trashNodes };
-
-      return { ...t, nodes, trash };
-    });
-  }
-
-  // const Template = {
-  //   load: (templateSchema),
-  //   add: (node: Node),
-  //   restore(guid: string),
-  //   remove(guid: string),
-  //   destroy(node: Node),
-  // }
 
   return (
     <>
