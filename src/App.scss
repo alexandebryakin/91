@@ -135,38 +135,3 @@ html {
     margin-right: 10px;
   }
 }
-
-.gallery {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-
-  &__image {
-    $--width: 75px;
-    $--heght: 100px;
-
-    cursor: pointer;
-    margin-top: 10px;
-    &-blank {
-      width: $--width;
-      height: $--heght;
-    }
-
-    img {
-      width: $--width;
-      height: $--heght;
-      object-fit: cover;
-      border-radius: $--border-radius;
-
-      box-shadow: rgba(17, 17, 26, 0.1) 0px 4px 16px, rgba(17, 17, 26, 0.1) 0px 8px 24px,
-        rgba(17, 17, 26, 0.1) 0px 16px 56px;
-
-      transition: box-shadow ease-in-out 0.2s;
-      transition: transform ease-in-out 0.2s;
-      &:hover {
-        box-shadow: rgba(0, 0, 0, 0.3) 0px 6px 15px 1px;
-        transform: scale(1.02);
-      }
-    }
-  }
-}

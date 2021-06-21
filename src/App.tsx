@@ -43,6 +43,9 @@ import Template, {
   TPlaceableNodeTypes,
 } from './ui/template/template';
 import makeTransformable from './ui/modifiers/makeTransformable';
+import ChevronDownIcon from './icons/ChevronDownIcon';
+import ChevronUpIcon from './icons/ChevronUpIcon';
+import Gallery, { IImage } from './ui/components/Gallery/Gallery';
 
 interface ISideBar {
   template: ITemplate;
@@ -594,23 +597,7 @@ function App(): React.ReactElement {
             </div>
 
             <div className="controls-section">
-              <div className={`gallery`}>
-                {images.map((img, idx) => {
-                  return (
-                    <div
-                      className="gallery__image"
-                      key={idx}
-                      onClick={() => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)}
-                    >
-                      <img src={img.src} alt="" />
-                    </div>
-                  );
-                })}
-
-                {Array.from(new Array(3 - (images.length % 3))).map((_elem, idx) => (
-                  <div className="gallery__image-blank" key={idx} />
-                ))}
-              </div>
+              <Gallery images={images} onClickImage={(img: IImage) => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)} />
             </div>
           </div>
         </div>
@@ -621,40 +608,29 @@ function App(): React.ReactElement {
 
 export default App;
 
-interface IImage {
-  src: string;
-  alt?: string;
-}
 const images: IImage[] = [
   {
     src: 'https://images.ctfassets.net/hrltx12pl8hq/3MbF54EhWUhsXunc5Keueb/60774fbbff86e6bf6776f1e17a8016b4/04-nature_721703848.jpg?fit=fill&w=480&h=270',
   },
-
   {
     src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://png.pngtree.com/thumb_back/fh260/background/20190223/ourmid/pngtree-pure-color-watercolor-graffiti-gradient-background-board-design-board-design-image_66713.jpg',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://static-cse.canva.com/blob/152424/2.-Free-photos.jpg',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://adoption.azureedge.net/wp-content/custom-backgrounds-gallery/user-submitted-background-71.jpg',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://assets.justinmind.com/wp-content/uploads/2020/02/full-image-website-background-use-color.png',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://media.istockphoto.com/vectors/abstract-geometric-gradient-shape-background-vector-id1158846550?b=1&k=6&m=1158846550&s=612x612&w=0&h=tDLp5LazpeVCff1-FqaI8eR8TlUBeWbt1189E4vw_vI=',
   },
-
   {
-    src: 'https://i.pinimg.com/564x/e9/29/1c/e9291cc39e820cd4afc6e58618dfc9e0.jpg',
+    src: 'https://learn.canva.com/wp-content/uploads/2020/02/removing-background-images_Unsplash_social.jpeg',
   },
 ];
