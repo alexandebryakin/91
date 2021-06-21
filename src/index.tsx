@@ -1,3 +1,4 @@
+import 'core-js/stable';
 import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
