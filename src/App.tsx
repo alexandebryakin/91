@@ -46,6 +46,7 @@ import makeTransformable from './ui/modifiers/makeTransformable';
 import ChevronDownIcon from './icons/ChevronDownIcon';
 import ChevronUpIcon from './icons/ChevronUpIcon';
 import Gallery, { IImage } from './ui/components/Gallery/Gallery';
+import RichTextEditor from './ui/components/RichTextEditor';
 
 interface ISideBar {
   template: ITemplate;
@@ -598,6 +599,10 @@ function App(): React.ReactElement {
 
             <div className="controls-section">
               <Gallery images={images} onClickImage={(img: IImage) => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)} />
+            </div>
+
+            <div className="controls-section">
+              <RichTextEditor />
             </div>
           </div>
         </div>

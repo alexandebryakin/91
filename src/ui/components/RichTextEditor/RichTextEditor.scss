@@ -1,0 +1,42 @@
+@import 'styles/variables';
+@import 'styles/mixins';
+
+.rich-text-editor {
+  border: 1px solid $--border-color;
+  background: #fff;
+
+  &__controls {
+    display: flex;
+  }
+
+  &__btn {
+    font-weight: 400;
+    border: none;
+    border-radius: $--border-radius;
+    color: $--color-text;
+    background: #fff;
+
+    fill: $--color-text;
+
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    cursor: pointer;
+
+    &--active {
+      background: $--color-icon--bg-selected;
+    }
+
+    &--bold {
+      font-weight: 700;
+    }
+
+    &--italic {
+      font-style: italic;
+    }
+  }
+}
