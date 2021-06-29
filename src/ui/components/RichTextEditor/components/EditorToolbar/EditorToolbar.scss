@@ -1,0 +1,125 @@
+@import 'styles/variables';
+@import 'styles/mixins';
+
+.editor-toolbar {
+  padding: $--padding;
+  box-shadow: rgba(17, 17, 26, 0.1) 0px 4px 16px, rgba(17, 17, 26, 0.1) 0px 8px 24px,
+    rgba(17, 17, 26, 0.1) 0px 16px 56px;
+
+  background: #fff;
+  border: 1px solid $--border-color;
+
+  &__row {
+    display: flex;
+    align-items: center;
+  }
+
+  &__separator {
+    height: 1px !important;
+    background: $--border-color;
+
+    margin-top: $--padding / 2;
+    margin-bottom: $--padding / 2;
+  }
+
+  &__btn {
+    font-weight: 400;
+    border: none;
+    border-radius: $--border-radius;
+    color: $--color-text;
+    background: #fff;
+
+    fill: $--color-text;
+
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    cursor: pointer;
+
+    @include make-hoverable;
+
+    &:nth-of-type(n + 2) {
+      margin-left: $--padding;
+    }
+
+    &--active {
+      background: $--color-icon--bg-selected;
+    }
+
+    &--bold {
+      font-weight: 700;
+    }
+
+    &--italic {
+      font-style: italic;
+    }
+  }
+}
+
+.typeface-select {
+  width: 100%;
+
+  &__label {
+    color: $--color-text;
+  }
+}
+
+.fontsize-select {
+  max-width: 100%;
+
+  &__controls {
+    display: flex;
+    align-items: center;
+  }
+
+  &__label {
+    color: $--color-text;
+  }
+
+  &__input {
+    width: 60px;
+    margin-right: $--padding;
+
+    input {
+      width: inherit;
+      height: 40px;
+
+      &:not(:focus) {
+        border-color: transparent;
+      }
+    }
+  }
+
+  &__options {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  &__option {
+    flex: 0 0 auto;
+    font-size: 14px;
+    user-select: none;
+
+    @include make-hoverable;
+  }
+
+  &__btn-scroll {
+    fill: $--color-text;
+    cursor: pointer;
+
+    svg {
+      height: 14px;
+    }
+
+    transition: visibility 0s, opacity 0.25s linear;
+    &--hidden {
+      visibility: hidden;
+      opacity: 0;
+    }
+  }
+}

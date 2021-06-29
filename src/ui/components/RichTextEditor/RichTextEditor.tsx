@@ -1,10 +1,12 @@
 import React from 'react';
+import { Editor, EditorState, RichUtils } from 'draft-js';
+import createStyles from 'draft-js-custom-styles';
+
 import './RichTextEditor.scss';
 
-import { Editor, EditorState, RichUtils } from 'draft-js';
-import BoldIcon from '../../../icons/BoldIcon';
-import ItalicIcon from '../../../icons/ItalicIcon';
-import UnderlineIcon from '../../../icons/UnderlineIcon';
+import EditorToolbar from './components/EditorToolbar';
+
+const { styles, customStyleFn } = createStyles(['font-size']);
 
 function RichTextEditor(): React.ReactElement {
   const [editorState, setEditorState] = React.useState(() => EditorState.createEmpty());
@@ -24,51 +26,18 @@ function RichTextEditor(): React.ReactElement {
     setEditorState(editorState);
   };
 
-  const _onClickBold = () => {
-    handleChange(RichUtils.toggleInlineStyle(editorState, 'BOLD'));
-  };
-
-  const _onClickItalic = () => {
-    handleChange(RichUtils.toggleInlineStyle(editorState, 'ITALIC'));
-  };
-
-  const _onClickUnderline = () => {
-    handleChange(RichUtils.toggleInlineStyle(editorState, 'UNDERLINE'));
-  };
-
-  const inlineStyle = editorState.getCurrentInlineStyle();
-  const isBold = inlineStyle.has('BOLD');
-  const isItalic = inlineStyle.has('ITALIC');
-  const isUnderline = inlineStyle.has('UNDERLINE');
-
   return (
     <div className="rich-text-editor">
-      <div className="rich-text-editor__controls">
-        <button
-          type="button"
-          onClick={_onClickBold}
-          className={`rich-text-editor__btn ${isBold ? 'rich-text-editor__btn--active' : ''}`}
-        >
-          <BoldIcon />
-        </button>
+      <EditorToolbar editorState={editorState} setEditorState={setEditorState} styles={styles} />
 
-        <button
-          type="button"
-          onClick={_onClickItalic}
-          className={`rich-text-editor__btn ${isItalic ? 'rich-text-editor__btn--active' : ''}`}
-        >
-          <ItalicIcon />
-        </button>
-
-        <button
-          type="button"
-          onClick={_onClickUnderline}
-          className={`rich-text-editor__btn ${isUnderline ? 'rich-text-editor__btn--active' : ''}`}
-        >
-          <UnderlineIcon />
-        </button>
+      <div className="rich-text-editor__container">
+        <Editor
+          editorState={editorState}
+          onChange={handleChange}
+          handleKeyCommand={handleKeyCommand}
+          customStyleFn={customStyleFn}
+        />
       </div>
-      <Editor editorState={editorState} onChange={handleChange} handleKeyCommand={handleKeyCommand} />
     </div>
   );
 }
