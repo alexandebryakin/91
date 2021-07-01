@@ -43,8 +43,6 @@ import Template, {
   TPlaceableNodeTypes,
 } from './ui/template/template';
 import makeTransformable from './ui/modifiers/makeTransformable';
-import ChevronDownIcon from './icons/ChevronDownIcon';
-import ChevronUpIcon from './icons/ChevronUpIcon';
 import Gallery, { IImage } from './ui/components/Gallery/Gallery';
 import RichTextEditor from './ui/components/RichTextEditor';
 

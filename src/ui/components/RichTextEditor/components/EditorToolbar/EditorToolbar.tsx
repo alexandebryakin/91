@@ -1,5 +1,4 @@
 import React from 'react';
-import Select from 'react-select';
 import { EditorState, RichUtils } from 'draft-js';
 
 import { TDraftJsCustomStyleCamelCased } from '../../../../../@types/draft-js-custom-styles';
@@ -12,6 +11,7 @@ import ChevronRightIcon from '../../../../../icons/ChevronRightIcon';
 import ItalicIcon from '../../../../../icons/ItalicIcon';
 import TextAlignIcons from '../../../../../icons/TextAlignIcons';
 import UnderlineIcon from '../../../../../icons/UnderlineIcon';
+import FontPicker from '../FontPicker';
 
 interface EditorToolbarProps {
   visible?: boolean;
@@ -98,6 +98,17 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
     scrollContainer.scrollLeft = defineScrollLeftOffset();
   };
 
+  const defaultFamily = 'serif';
+  const withDefaultFontFamily = (family: string): string => `${family}, ${defaultFamily}`;
+  const withoutDefaultFontFamily = (family: string): string => family.split(',')[0];
+
+  const onChangeFontFamily = (family: string) => {
+    const newEditorState = styles.fontFamily.remove(editorState);
+    setEditorState(styles.fontFamily.add(newEditorState, withDefaultFontFamily(family)));
+  };
+
+  const currentFontFamily = withoutDefaultFontFamily(styles.fontFamily.current(editorState));
+
   if (visible === false) return null;
   return (
     <div className="editor-toolbar">
@@ -160,15 +171,7 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
       <div className="editor-toolbar__row">
         <div className="typeface-select">
           <div className="typeface-select__label">Typeface</div>
-
-          <Select
-            components={{ DropdownIndicator: () => null, IndicatorSeparator: () => null }}
-            styles={{
-              control: (base) => {
-                return { ...base, border: 'none', boxShadow: 'none', cursor: 'pointer' };
-              },
-            }}
-          />
+          <FontPicker onChangeFontFamily={onChangeFontFamily} selectedFontFamily={currentFontFamily} />
         </div>
       </div>
 
@@ -207,6 +210,7 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
                     type="button"
                     onClick={(e) => {
                       keepCursorFocusInsideEditor(e);
+                      setFontSize(size.toString());
                       applyFontSize(size);
                     }}
                     className={`editor-toolbar__btn fontsize-select__option ${

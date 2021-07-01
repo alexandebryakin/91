@@ -6,7 +6,7 @@ import './RichTextEditor.scss';
 
 import EditorToolbar from './components/EditorToolbar';
 
-const { styles, customStyleFn } = createStyles(['font-size']);
+const { styles, customStyleFn } = createStyles(['font-size', 'font-family']);
 
 function RichTextEditor(): React.ReactElement {
   const [editorState, setEditorState] = React.useState(() => EditorState.createEmpty());
