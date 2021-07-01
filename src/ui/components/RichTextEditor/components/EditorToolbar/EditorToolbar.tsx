@@ -12,6 +12,7 @@ import ItalicIcon from '../../../../../icons/ItalicIcon';
 import TextAlignIcons from '../../../../../icons/TextAlignIcons';
 import UnderlineIcon from '../../../../../icons/UnderlineIcon';
 import FontPicker from '../FontPicker';
+import { ECustomBlockStyleTypes } from '../../RichTextEditor';
 
 interface EditorToolbarProps {
   visible?: boolean;
@@ -45,6 +46,8 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
   const isBold = inlineStyle.has('BOLD');
   const isItalic = inlineStyle.has('ITALIC');
   const isUnderline = inlineStyle.has('UNDERLINE');
+
+  const currentBlockType = RichUtils.getCurrentBlockType(editorState);
 
   const fontSizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 38, 46, 54, 62, 72];
   const applyFontSize = (size: number) => {
@@ -109,30 +112,40 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
 
   const currentFontFamily = withoutDefaultFontFamily(styles.fontFamily.current(editorState));
 
+  const handleAlignment = (direction: 'left' | 'center' | 'right') => {
+    setEditorState(RichUtils.toggleBlockType(editorState, direction));
+  };
+
   if (visible === false) return null;
   return (
     <div className="editor-toolbar">
       <div className="editor-toolbar__row">
         <button
           type="button"
-          onClick={() => console.warn('Not implemented: Text align left')}
-          className={`editor-toolbar__btn ${false ? 'editor-toolbar__btn--active' : ''}`}
+          onClick={() => handleAlignment('left')}
+          className={`editor-toolbar__btn ${
+            currentBlockType == ECustomBlockStyleTypes.left ? 'editor-toolbar__btn--active' : ''
+          }`}
         >
           <TextAlignIcons.Left />
         </button>
 
         <button
           type="button"
-          onClick={() => console.warn('Not implemented: Text align center')}
-          className={`editor-toolbar__btn ${false ? 'editor-toolbar__btn--active' : ''}`}
+          onClick={() => handleAlignment('center')}
+          className={`editor-toolbar__btn ${
+            currentBlockType == ECustomBlockStyleTypes.center ? 'editor-toolbar__btn--active' : ''
+          }`}
         >
           <TextAlignIcons.Center />
         </button>
 
         <button
           type="button"
-          onClick={() => console.warn('Not implemented: Text align right')}
-          className={`editor-toolbar__btn ${false ? 'editor-toolbar__btn--active' : ''}`}
+          onClick={() => handleAlignment('right')}
+          className={`editor-toolbar__btn ${
+            currentBlockType == ECustomBlockStyleTypes.right ? 'editor-toolbar__btn--active' : ''
+          }`}
         >
           <TextAlignIcons.Right />
         </button>

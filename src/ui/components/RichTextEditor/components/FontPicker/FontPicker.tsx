@@ -4,6 +4,8 @@ import { components, GroupTypeBase, OptionProps, OptionTypeBase, SingleValueProp
 
 import { fontFamilies } from './fontFamilies';
 
+import './FontPicker.scss';
+
 const FONT_CACHE: { [family: string]: boolean } = {};
 
 function loadFont(family: string | undefined) {

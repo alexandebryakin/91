@@ -1,5 +1,5 @@
 import React from 'react';
-import { Editor, EditorState, RichUtils } from 'draft-js';
+import { ContentBlock, Editor, EditorState, RichUtils } from 'draft-js';
 import createStyles from 'draft-js-custom-styles';
 
 import './RichTextEditor.scss';
@@ -7,6 +7,21 @@ import './RichTextEditor.scss';
 import EditorToolbar from './components/EditorToolbar';
 
 const { styles, customStyleFn } = createStyles(['font-size', 'font-family']);
+
+export enum ECustomBlockStyleTypes {
+  left = 'left',
+  center = 'center',
+  right = 'right',
+}
+const getBlockStyle = (block: ContentBlock) => {
+  return (
+    {
+      [ECustomBlockStyleTypes.left]: 'align-left',
+      [ECustomBlockStyleTypes.center]: 'align-center',
+      [ECustomBlockStyleTypes.right]: 'align-right',
+    }[block.getType()] || ''
+  );
+};
 
 function RichTextEditor(): React.ReactElement {
   const [editorState, setEditorState] = React.useState(() => EditorState.createEmpty());
@@ -36,6 +51,7 @@ function RichTextEditor(): React.ReactElement {
           onChange={handleChange}
           handleKeyCommand={handleKeyCommand}
           customStyleFn={customStyleFn}
+          blockStyleFn={getBlockStyle}
         />
       </div>
     </div>

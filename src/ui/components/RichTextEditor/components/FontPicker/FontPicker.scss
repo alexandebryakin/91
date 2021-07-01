@@ -1,1 +1,12 @@
-/* your css code */
+@import 'styles/variables';
+@import 'styles/mixins';
+
+.font-picker {
+  &__option {
+    cursor: pointer;
+
+    &:hover {
+      background: $--color-bg-hovered;
+    }
+  }
+}
