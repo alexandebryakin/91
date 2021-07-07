@@ -16,6 +16,7 @@ import { ETransformerTypes, setupTransformer } from '../../App';
 import { ILayerHistory } from '../history/history';
 import { Rect } from 'konva/types/shapes/Rect';
 import makeTransformable from '../modifiers/makeTransformable';
+import { IEditorController } from '../components/RichTextEditor/RichTextEditor';
 
 export enum ETemplateNodeTypes {
   TEXT = 'TEXT',
@@ -132,6 +133,7 @@ function load(
   stage: Stage,
   History: ILayerHistory,
   setCoordsAndSizeAttrs: (e: KonvaEventObject<MouseEvent>) => void,
+  editorController: IEditorController,
 ): void {
   _initialize(template.size);
   const templateRect = buildTemplateRect();
@@ -157,7 +159,7 @@ function load(
         });
 
         makeTransformable(text, ETransformerTypes.TEXT);
-        makeTextEditible(text, transformer, stage, layer);
+        makeTextEditible(text, transformer, stage, layer, editorController);
         makeHoverable(text, layer, transformer);
         makeGuidelineable(text, transformer, layer);
         makeSnapable(text, layer);

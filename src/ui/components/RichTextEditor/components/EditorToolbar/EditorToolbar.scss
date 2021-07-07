@@ -9,6 +9,9 @@
   background: #fff;
   border: 1px solid $--border-color;
 
+  position: absolute;
+  width: 250px;
+
   &__row {
     display: flex;
     align-items: center;

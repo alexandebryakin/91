@@ -103,7 +103,7 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
 
   const defaultFamily = 'serif';
   const withDefaultFontFamily = (family: string): string => `${family}, ${defaultFamily}`;
-  const withoutDefaultFontFamily = (family: string): string => family.split(',')[0];
+  const withoutDefaultFontFamily = (family: string): string => (family || '').split(',')[0];
 
   const onChangeFontFamily = (family: string) => {
     const newEditorState = styles.fontFamily.remove(editorState);

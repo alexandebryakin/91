@@ -3,8 +3,11 @@
 
 .rich-text-editor {
   background: #fff;
+  position: relative;
+  z-index: 200;
 
   &__container {
     border: 1px solid $--border-color;
+    position: absolute;
   }
 }

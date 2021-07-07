@@ -45,6 +45,7 @@ import Template, {
 import makeTransformable from './ui/modifiers/makeTransformable';
 import Gallery, { IImage } from './ui/components/Gallery/Gallery';
 import RichTextEditor from './ui/components/RichTextEditor';
+import { useRichTextEditorController } from './ui/components/RichTextEditor/RichTextEditor';
 
 interface ISideBar {
   template: ITemplate;
@@ -265,7 +266,7 @@ function App(): React.ReactElement {
 
     stage.on('click', setCoordsAndSizeAttrs);
 
-    Template.load(loadedTemplate, transformer, layer, stage, History, setCoordsAndSizeAttrs);
+    Template.load(loadedTemplate, transformer, layer, stage, History, setCoordsAndSizeAttrs, editorController);
 
     const handleSelection = (e: KonvaEventObject<MouseEvent>) => {
       const nodes = e.target === stage ? [] : [e.target];
@@ -483,7 +484,7 @@ function App(): React.ReactElement {
     layer.add(shape);
 
     if (type == ETemplateNodeTypes.TEXT) {
-      stage && makeTextEditible(shape as Text, transformer, stage, layer);
+      stage && makeTextEditible(shape as Text, transformer, stage, layer, editorController);
     }
 
     const onShapePlaced = (shape: Shape) => {
@@ -496,10 +497,12 @@ function App(): React.ReactElement {
     shapePlacementHandler(type, shape, onShapePlaced, onDiscard);
   }
 
+  const editorController = useRichTextEditorController();
   return (
     <>
       <NavBar />
 
+      <RichTextEditor controller={editorController} />
       <div className="main">
         <div className="page">
           <SideBar
@@ -599,9 +602,7 @@ function App(): React.ReactElement {
               <Gallery images={images} onClickImage={(img: IImage) => handlePlaceNode(ETemplateNodeTypes.IMAGE, img)} />
             </div>
 
-            <div className="controls-section">
-              <RichTextEditor />
-            </div>
+            <div className="controls-section">{/* <RichTextEditor /> */}</div>
           </div>
         </div>
       </div>
