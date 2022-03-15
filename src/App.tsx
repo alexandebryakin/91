@@ -96,7 +96,9 @@ const loadedTemplate: ITemplate = {
       meta: {
         type: 'text',
         fontSize: 18,
-        content: 'New text ...',
+        content:
+          // 'New text ...',
+          '{"blocks":[{"key":"64a0","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"3pj82","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"babc3","text":"dsa","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"5f8hp","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"bkoqa","text":"sda","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"6j9n1","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"5curb","text":"sda","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}}],"entityMap":{}}',
       },
     } as INodeText,
 
@@ -108,7 +110,8 @@ const loadedTemplate: ITemplate = {
       meta: {
         type: 'text',
         fontSize: 20,
-        content: 'New text ...2',
+        content:
+          '{"blocks":[{"key":"64a0","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"3pj82","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"babc3","text":"dsa","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"5f8hp","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"bkoqa","text":"sda","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"6j9n1","text":"","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}},{"key":"5curb","text":"sda","type":"unstyled","depth":0,"inlineStyleRanges":[],"entityRanges":[],"data":{}}],"entityMap":{}}',
       },
     } as INodeText,
   ],
@@ -297,11 +300,14 @@ function App(): React.ReactElement {
       const newScale = e.evt.deltaY > 0 ? oldScale * scaleBy : oldScale / scaleBy;
 
       stage.scale({ x: newScale, y: newScale });
+      editorController.scale({ x: newScale, y: newScale });
 
       const newPos = {
         x: pointerX - mousePointTo.x * newScale,
         y: pointerY - mousePointTo.y * newScale,
       };
+      // editorController.x(newPos.x);
+      // editorController.y(newPos.y);
       stage.position(newPos);
       stage.batchDraw();
     };
@@ -458,17 +464,19 @@ function App(): React.ReactElement {
       };
 
       if (type == ETemplateNodeTypes.TEXT)
-        return new Promise<Text>((resolve) => {
-          resolve(
-            new Konva.Text({
-              ...common,
+        return new Promise<Image>((resolve) => {
+          const textAsImage = new Konva.Image({
+            ...common,
 
-              width: 100,
-              height: 20,
-              text: 'New text ...',
-              fontSize: 20,
-            }),
-          );
+            width: 100,
+            height: 20,
+            image: undefined,
+            // text: 'New text ...',
+            // fontSize: 20,
+          });
+          const jsonRawDraftJs = Template.defaultDrawJsTextAsImageContent;
+          Template.transformDraftJsRawToImage(jsonRawDraftJs).then((canvas) => textAsImage.image(canvas));
+          resolve(textAsImage);
         });
 
       // if (type == ETemplateNodeTypes.IMAGE)
@@ -484,7 +492,7 @@ function App(): React.ReactElement {
     layer.add(shape);
 
     if (type == ETemplateNodeTypes.TEXT) {
-      stage && makeTextEditible(shape as Text, transformer, stage, layer, editorController);
+      stage && makeTextEditible(shape as Image, transformer, stage, layer, editorController);
     }
 
     const onShapePlaced = (shape: Shape) => {
@@ -502,7 +510,7 @@ function App(): React.ReactElement {
     <>
       <NavBar />
 
-      <RichTextEditor controller={editorController} />
+      <RichTextEditor controller={editorController} scale={stage?.scale()} />
       <div className="main">
         <div className="page">
           <SideBar

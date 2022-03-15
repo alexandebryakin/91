@@ -15,6 +15,7 @@ import FontPicker from '../FontPicker';
 import { ECustomBlockStyleTypes } from '../../RichTextEditor';
 
 interface EditorToolbarProps {
+  refRoot?: React.LegacyRef<HTMLDivElement>;
   visible?: boolean;
   styles: TDraftJsCustomStyleCamelCased;
 
@@ -28,7 +29,7 @@ function keepCursorFocusInsideEditor(e: React.MouseEvent) {
 
 function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
   const { editorState, setEditorState } = props;
-  const { visible, styles } = props;
+  const { refRoot, visible, styles } = props;
 
   const _onClickBold = () => {
     setEditorState(RichUtils.toggleInlineStyle(editorState, 'BOLD'));
@@ -118,7 +119,11 @@ function EditorToolbar(props: EditorToolbarProps): React.ReactElement | null {
 
   if (visible === false) return null;
   return (
-    <div className="editor-toolbar">
+    <div
+      className="editor-toolbar"
+      ref={refRoot}
+      // ref={(r) => ref?.current && (ref.current = r)}
+    >
       <div className="editor-toolbar__row">
         <button
           type="button"
