@@ -75,7 +75,8 @@ function SideBar(props: ISideBar): React.ReactElement {
               >
                 <TextIcon className="document-structure__row-icon" />
 
-                <span>{meta.type == 'text' ? meta.content : meta.type}</span>
+                {/* <span>{meta.type == 'text' ? meta.content : meta.type}</span> */}
+                <span>{meta.type}</span>
               </div>
             );
           })}
